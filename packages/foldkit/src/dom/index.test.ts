@@ -419,6 +419,34 @@ describe('inertOthers', () => {
     }),
   )
 
+  it.effect('replaces an earlier isolation for the same id', () =>
+    Effect.gen(function* () {
+      const { header, footer, items } = buildDom()
+
+      yield* inertOthers('test', ['#menu-button'])
+      expect(items.inert).toBe(true)
+      expect(items.getAttribute('aria-hidden')).toBe('true')
+
+      yield* inertOthers('test', ['#menu-button', '#menu-items'])
+      expect(items.inert).toBeFalsy()
+      expect(items.getAttribute('aria-hidden')).toBeNull()
+      expect(header.inert).toBe(true)
+      expect(footer.inert).toBe(true)
+
+      yield* restoreInert('test')
+      expect(header.inert).toBeFalsy()
+      expect(header.getAttribute('aria-hidden')).toBeNull()
+      expect(footer.inert).toBeFalsy()
+      expect(footer.getAttribute('aria-hidden')).toBeNull()
+
+      yield* restoreInert('test')
+      expect(header.inert).toBeFalsy()
+      expect(footer.inert).toBeFalsy()
+
+      cleanupDom()
+    }),
+  )
+
   it.effect('handles missing selectors gracefully', () =>
     Effect.gen(function* () {
       buildDom()
