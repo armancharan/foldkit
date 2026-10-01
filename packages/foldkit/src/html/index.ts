@@ -162,6 +162,24 @@ const keyboardModifiers = (event: KeyboardEvent): KeyboardModifiers => ({
   metaKey: event.metaKey,
 })
 
+// NOTE: some browsers report the keydown that confirms an IME conversion
+// with keyCode 229 and isComposing false. That keydown belongs to the
+// input method, the same as one with isComposing set.
+const IME_COMPOSITION_KEY_CODE = 229
+
+const isImeCompositionKeydown = (event: KeyboardEvent): boolean =>
+  event.isComposing || event.keyCode === IME_COMPOSITION_KEY_CODE
+
+const skipImeCompositionKeydown =
+  (handle: (event: KeyboardEvent) => void) =>
+  (event: KeyboardEvent): void => {
+    if (isImeCompositionKeydown(event)) {
+      return
+    }
+
+    handle(event)
+  }
+
 const inputEventValue = (target: EventTarget | null): string => {
   if (
     Predicate.hasProperty(target, 'value') &&
@@ -1742,30 +1760,31 @@ const attributeHandlers: AttributeHandlers = {
     }),
   OnKeyDown: ({ f: toMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
-      keydown: (event: KeyboardEvent) =>
-        ctx.dispatch(toMessage(event.key, keyboardModifiers(event))),
+      keydown: skipImeCompositionKeydown(event => {
+        ctx.dispatch(toMessage(event.key, keyboardModifiers(event)))
+      }),
     }),
   OnKeyDownPreventDefault: ({ f: toMaybeMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
-      keydown: (event: KeyboardEvent) => {
+      keydown: skipImeCompositionKeydown(event => {
         const maybeMessage = toMaybeMessage(event.key, keyboardModifiers(event))
         if (Option.isSome(maybeMessage)) {
           event.preventDefault()
           ctx.dispatch(maybeMessage.value)
         }
-      },
+      }),
     }),
   OnKeyDownSelf: ({ f: toMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
-      keydown: (event: KeyboardEvent) => {
+      keydown: skipImeCompositionKeydown(event => {
         if (isEventTargetCurrentTarget(event)) {
           ctx.dispatch(toMessage(event.key, keyboardModifiers(event)))
         }
-      },
+      }),
     }),
   OnKeyDownSelfPreventDefault: ({ f: toMaybeMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
-      keydown: (event: KeyboardEvent) => {
+      keydown: skipImeCompositionKeydown(event => {
         if (!isEventTargetCurrentTarget(event)) {
           return
         }
@@ -1775,11 +1794,11 @@ const attributeHandlers: AttributeHandlers = {
           event.preventDefault()
           ctx.dispatch(maybeMessage.value)
         }
-      },
+      }),
     }),
   OnKeyDownFocus: ({ f: toMaybeFocusAndMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
-      keydown: (event: KeyboardEvent) => {
+      keydown: skipImeCompositionKeydown(event => {
         const maybeResult = toMaybeFocusAndMessage(
           event.key,
           keyboardModifiers(event),
@@ -1793,7 +1812,7 @@ const attributeHandlers: AttributeHandlers = {
           }
           ctx.dispatch(message)
         }
-      },
+      }),
     }),
   OnKeyUp: ({ f: toMessage }, ctx: BuildContext) =>
     updateDataOn(ctx, {
