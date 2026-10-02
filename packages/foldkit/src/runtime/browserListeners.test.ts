@@ -50,6 +50,11 @@ const makeLink = (
 const click = (
   link: HTMLAnchorElement,
   options: MouseEventInit = {},
+): MouseEvent => clickElement(link, options)
+
+const clickElement = (
+  element: Element,
+  options: MouseEventInit = {},
 ): MouseEvent => {
   const event = new MouseEvent('click', {
     bubbles: true,
@@ -57,8 +62,25 @@ const click = (
     button: 0,
     ...options,
   })
-  link.dispatchEvent(event)
+  element.dispatchEvent(event)
   return event
+}
+
+const makeSvgLink = (
+  href: string,
+  attributes: Readonly<{ target?: string }> = {},
+): SVGRectElement => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  const link = document.createElementNS('http://www.w3.org/2000/svg', 'a')
+  link.setAttribute('href', href)
+  if (attributes.target !== undefined) {
+    link.setAttribute('target', attributes.target)
+  }
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+  link.appendChild(rect)
+  svg.appendChild(link)
+  document.body.appendChild(svg)
+  return rect
 }
 
 describe('addLinkClickListener', () => {
@@ -207,5 +229,23 @@ describe('addLinkClickListener', () => {
 
     expect(dispatched).toHaveLength(0)
     expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('preventDefaults and dispatches Internal for a click inside an SVG anchor', () => {
+    const rect = makeSvgLink('/units/42')
+    const event = clickElement(rect)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(dispatched).toMatchObject([
+      { _tag: 'Internal', url: { pathname: '/units/42' } },
+    ])
+  })
+
+  it('falls through on an SVG anchor with target="_blank"', () => {
+    const rect = makeSvgLink('/units/42', { target: '_blank' })
+    const event = clickElement(rect)
+
+    expect(event.defaultPrevented).toBe(false)
+    expect(dispatched).toHaveLength(0)
   })
 })

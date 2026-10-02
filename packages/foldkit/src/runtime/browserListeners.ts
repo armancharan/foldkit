@@ -1,4 +1,4 @@
-import { Option, String } from 'effect'
+import { Option, Predicate, String } from 'effect'
 
 import { OptionExt, StringExt } from '../effectExtensions/index.js'
 import { UrlRequest } from '../navigation/urlRequest.js'
@@ -65,13 +65,13 @@ export const addLinkClickListener = <Message>(
     }
 
     const { value: link } = maybeLink
-    const { href } = link
+    const href = readHref(link)
     if (String.isEmpty(href)) {
       return
     }
 
-    const isNonSelfTarget =
-      !String.isEmpty(link.target) && link.target !== '_self'
+    const target = readTarget(link)
+    const isNonSelfTarget = !String.isEmpty(target) && target !== '_self'
     const isDownloadLink = link.hasAttribute('download')
 
     if (isNonSelfTarget || isDownloadLink) {
@@ -80,7 +80,7 @@ export const addLinkClickListener = <Message>(
 
     event.preventDefault()
 
-    const linkUrl = new URL(href)
+    const linkUrl = new URL(href, document.baseURI)
     const currentUrl = new URL(window.location.href)
 
     if (linkUrl.origin !== currentUrl.origin) {
@@ -113,6 +113,22 @@ const addProgrammaticNavigationListener = <Message>(
   return () => {
     window.removeEventListener('foldkit:urlchange', onProgrammaticNavigation)
   }
+}
+
+const readHref = (link: Element): string => {
+  if (link instanceof HTMLAnchorElement && Predicate.isString(link.href)) {
+    return link.href
+  }
+
+  return link.getAttribute('href') ?? ''
+}
+
+const readTarget = (link: Element): string => {
+  if (link instanceof HTMLAnchorElement && Predicate.isString(link.target)) {
+    return link.target
+  }
+
+  return link.getAttribute('target') ?? ''
 }
 
 const urlToFoldkitUrl = (url: URL): Url => {
