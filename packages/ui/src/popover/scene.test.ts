@@ -94,8 +94,23 @@ describe('Popover', () => {
         Scene.given(openPopover.model),
         Scene.expect(panel).toExist(),
         Scene.expect(panel).toHaveAttr('tabIndex', '0'),
+        Scene.expect(panel).toHaveHandler('focusout'),
+        Scene.expect(panel).not.toHaveHandler('blur'),
         acknowledgeAnchor,
         acknowledgeBackdrop,
+      )
+    })
+
+    it('closes when focus leaves the panel', () => {
+      Scene.scene(
+        { update, view: sceneView() },
+        Scene.given(openPopover.model),
+        acknowledgeAnchor,
+        acknowledgeBackdrop,
+        Scene.focusLeave(panel),
+        Scene.expect(panel).toBeAbsent(),
+        Scene.expect(button).toHaveAttr('aria-expanded', 'false'),
+        Scene.Mount.expectEnded(AnchorPopover, PortalPopoverBackdrop),
       )
     })
 
@@ -207,10 +222,11 @@ describe('Popover', () => {
         )
       })
 
-      it('renders panel without blur handler when contentFocus is enabled', () => {
+      it('renders panel without a focus-leave handler when contentFocus is enabled', () => {
         Scene.scene(
           { update, view: sceneView() },
           Scene.given(openContentFocusPopover.model),
+          Scene.expect(panel).not.toHaveHandler('focusout'),
           Scene.expect(panel).not.toHaveHandler('blur'),
           acknowledgeAnchor,
           acknowledgeBackdrop,
