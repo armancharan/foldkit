@@ -1,4 +1,12 @@
-import { Array, Function, Option, Schema, String, pipe } from 'effect'
+import {
+  Array,
+  Function,
+  Option,
+  Predicate,
+  Schema,
+  String,
+  pipe,
+} from 'effect'
 
 import {
   type Placement as FloatingPlacement,
@@ -278,12 +286,11 @@ const TABBABLE_SELECTOR = Array.join(
   ', ',
 )
 
-const isTabbable = (element: Element): element is HTMLElement => {
-  if (!(element instanceof HTMLElement)) {
-    return false
-  }
+const isHtmlElement = (element: Element): element is HTMLElement =>
+  element instanceof HTMLElement
 
-  if (element.tabIndex < 0 || element.matches(':disabled')) {
+const isTabbableHtmlElement = (element: HTMLElement): boolean => {
+  if (element.matches(':disabled')) {
     return false
   }
 
@@ -291,12 +298,17 @@ const isTabbable = (element: Element): element is HTMLElement => {
     return false
   }
 
-  if (element.closest('[hidden], [inert]') !== null) {
+  if (element.tabIndex < 0) {
     return false
   }
 
-  return element.checkVisibility({ visibilityProperty: true })
+  return (
+    element.closest('[hidden], [inert]') === null &&
+    element.checkVisibility({ visibilityProperty: true })
+  )
 }
+
+const isTabbable = Predicate.compose(isHtmlElement, isTabbableHtmlElement)
 
 const tabbablesWithin = (root: ParentNode): ReadonlyArray<HTMLElement> =>
   Array.filter(
@@ -307,7 +319,7 @@ const tabbablesWithin = (root: ParentNode): ReadonlyArray<HTMLElement> =>
 const panelTabbables = (panel: HTMLElement): ReadonlyArray<HTMLElement> => {
   const descendants = tabbablesWithin(panel)
 
-  if (isTabbable(panel)) {
+  if (isTabbableHtmlElement(panel)) {
     return [panel, ...descendants]
   }
 
@@ -332,7 +344,8 @@ const nextTabbableAfterTrigger = (
   )
 }
 
-const isPlainTab = (event: KeyboardEvent): boolean =>
+const isPlainTab = (event: Event): event is KeyboardEvent =>
+  event instanceof KeyboardEvent &&
   event.key === 'Tab' &&
   !event.defaultPrevented &&
   !event.altKey &&
@@ -604,49 +617,34 @@ export const anchorSetup = (
   }
 
   const handleDisclosureTab = (event: Event): void => {
-    if (
-      !(event instanceof KeyboardEvent) ||
-      !isPlainTab(event) ||
-      document.activeElement !== event.target
-    ) {
+    if (!isPlainTab(event) || document.activeElement !== event.target) {
       return
     }
 
     const tabbables = panelTabbables(element)
-    const maybeFirst = Array.head(tabbables)
-    const maybeLast = Array.last(tabbables)
 
-    if (Option.isNone(maybeFirst) || Option.isNone(maybeLast)) {
+    if (!Array.isReadonlyArrayNonEmpty(tabbables)) {
       return
     }
 
-    if (event.shiftKey) {
-      if (event.target !== maybeFirst.value) {
-        return
-      }
+    const first = Array.headNonEmpty(tabbables)
+    const last = Array.lastNonEmpty(tabbables)
 
+    if (event.shiftKey && event.target === first) {
       event.preventDefault()
       button.focus()
-      return
+    } else if (!event.shiftKey && event.target === last) {
+      const maybeNext = nextTabbableAfterTrigger(button, element, owner)
+
+      if (Option.isSome(maybeNext)) {
+        event.preventDefault()
+        maybeNext.value.focus()
+      }
     }
-
-    if (event.target !== maybeLast.value) {
-      return
-    }
-
-    const maybeNext = nextTabbableAfterTrigger(button, element, owner)
-
-    if (Option.isNone(maybeNext)) {
-      return
-    }
-
-    event.preventDefault()
-    maybeNext.value.focus()
   }
 
   const handleTriggerTab = (event: Event): void => {
     if (
-      !(event instanceof KeyboardEvent) ||
       !isPlainTab(event) ||
       event.shiftKey ||
       document.activeElement !== button
@@ -654,14 +652,14 @@ export const anchorSetup = (
       return
     }
 
-    const maybeFirst = Array.head(panelTabbables(element))
+    const tabbables = panelTabbables(element)
 
-    if (Option.isNone(maybeFirst)) {
+    if (!Array.isReadonlyArrayNonEmpty(tabbables)) {
       return
     }
 
     event.preventDefault()
-    maybeFirst.value.focus()
+    Array.headNonEmpty(tabbables).focus()
   }
 
   const isTabIntercepted = isPortal && shouldInterceptTab
