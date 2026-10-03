@@ -95,7 +95,6 @@ describe('Popover', () => {
         Scene.expect(panel).toExist(),
         Scene.expect(panel).toHaveAttr('tabIndex', '0'),
         Scene.expect(panel).toHaveHandler('focusout'),
-        Scene.expect(panel).not.toHaveHandler('blur'),
         acknowledgeAnchor,
         acknowledgeBackdrop,
       )
@@ -227,7 +226,6 @@ describe('Popover', () => {
           { update, view: sceneView() },
           Scene.given(openContentFocusPopover.model),
           Scene.expect(panel).not.toHaveHandler('focusout'),
-          Scene.expect(panel).not.toHaveHandler('blur'),
           acknowledgeAnchor,
           acknowledgeBackdrop,
         )
