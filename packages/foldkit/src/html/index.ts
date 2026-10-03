@@ -25,6 +25,7 @@ import {
   reflectedAttributeName,
 } from '../domReflection.js'
 import type { File } from '../file/index.js'
+import { isImeCompositionKeydown } from '../imeComposition.js'
 import type { MountAction } from '../mount/index.js'
 import {
   MountRuntime,
@@ -161,14 +162,6 @@ const keyboardModifiers = (event: KeyboardEvent): KeyboardModifiers => ({
   altKey: event.altKey,
   metaKey: event.metaKey,
 })
-
-// NOTE: some browsers report the keydown that confirms an IME conversion
-// with keyCode 229 and isComposing false. That keydown belongs to the
-// input method, the same as one with isComposing set.
-const IME_COMPOSITION_KEY_CODE = 229
-
-const isImeCompositionKeydown = (event: KeyboardEvent): boolean =>
-  event.isComposing || event.keyCode === IME_COMPOSITION_KEY_CODE
 
 const skipImeCompositionKeydown =
   (handle: (event: KeyboardEvent) => void) =>
