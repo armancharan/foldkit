@@ -39,7 +39,8 @@
       "entry": ["src/vite.ts"]
     },
     "packages/vite-plugin-foldkit": {
-      "ignoreFiles": ["test/fixtures/**"]
+      "ignoreFiles": ["test/fixtures/**"],
+      "ignoreDependencies": ["@effect/platform-node-shared"]
     },
     "packages/markdown": {
       "entry": ["src/index.ts", "src/vite/public.ts"]
@@ -79,15 +80,6 @@
     "examples/charting": {
       "entry": [],
       "ignoreDependencies": ["@foldkit/devtools", "tailwindcss"]
-    },
-    "examples/livestore": {
-      "ignoreFiles": ["vite.config.playground.ts"],
-      "ignoreDependencies": [
-        "@foldkit/devtools",
-        "@livestore/peer-deps",
-        "@livestore/wa-sqlite",
-        "tailwindcss"
-      ]
     },
     "examples/ssr": {
       "entry": ["src/entry.server.ts"],
