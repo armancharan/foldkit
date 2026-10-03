@@ -84,7 +84,9 @@ export const addLinkClickListener = <Message>(
     const currentUrl = new URL(window.location.href)
 
     if (linkUrl.origin !== currentUrl.origin) {
-      dispatch(routingConfig.onUrlRequest(UrlRequest.External({ href })))
+      dispatch(
+        routingConfig.onUrlRequest(UrlRequest.External({ href: linkUrl.href })),
+      )
       return
     }
 
@@ -115,12 +117,18 @@ const addProgrammaticNavigationListener = <Message>(
   }
 }
 
+const XLINK_NAMESPACE = 'http://www.w3.org/1999/xlink'
+
 const readHref = (link: Element): string => {
   if (link instanceof HTMLAnchorElement && Predicate.isString(link.href)) {
     return link.href
   }
 
-  return link.getAttribute('href') ?? ''
+  return (
+    link.getAttribute('href') ??
+    link.getAttributeNS(XLINK_NAMESPACE, 'href') ??
+    ''
+  )
 }
 
 const readTarget = (link: Element): string => {
