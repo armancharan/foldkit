@@ -157,7 +157,8 @@ export const portalToContainingRoot = (element: Element): (() => void) => {
     // marks it inert and the panel is then portaled into that inert root.
     // Removing the empty root makes the next open create a fresh one after
     // isolation, the same as the first open. A root that still hosts another
-    // portaled element stays.
+    // portaled element stays, and the next modal open still marks that root
+    // inert.
     if (!portalRoot.hasChildNodes()) {
       portalRoot.remove()
     }
