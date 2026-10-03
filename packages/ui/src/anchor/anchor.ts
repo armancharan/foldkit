@@ -222,6 +222,11 @@ const toSide = (placement: FloatingPlacement): string =>
  *  - `anchor`: the static positioning options.
  *  - `interceptTab`: returns focus to the trigger on Tab inside a portaled
  *    panel. Defaults to `true`.
+ *  - `disclosureTabOrder`: for a portaled panel with `interceptTab` left
+ *    false. Tab on the trigger enters the panel, Tab on its last control
+ *    continues at the next control after the trigger, and Shift+Tab on its
+ *    first control returns to the trigger. Ignored when the panel is not
+ *    portaled. Defaults to `false`.
  *  - `focusAfterPosition`: focuses the element once the first position
  *    resolves. Defaults to `false`.
  *  - `focusSelector`: focuses this descendant instead of the element itself.
@@ -241,6 +246,7 @@ export type SetupConfig = Readonly<{
   buttonId: string
   anchor: AnchorConfig
   interceptTab?: boolean
+  disclosureTabOrder?: boolean
   focusAfterPosition?: boolean
   focusSelector?: string
   arrowId?: string
@@ -267,13 +273,80 @@ const setOrResetLength = (
   }
 }
 
+const TABBABLE_SELECTOR = Array.join(
+  ['a[href]', 'button', 'input', 'select', 'textarea', '[tabindex]'],
+  ', ',
+)
+
+const isTabbable = (element: Element): element is HTMLElement => {
+  if (!(element instanceof HTMLElement)) {
+    return false
+  }
+
+  if (element.tabIndex < 0 || element.matches(':disabled')) {
+    return false
+  }
+
+  if (element instanceof HTMLInputElement && element.type === 'hidden') {
+    return false
+  }
+
+  if (element.closest('[hidden], [inert]') !== null) {
+    return false
+  }
+
+  return element.checkVisibility({ visibilityProperty: true })
+}
+
+const tabbablesWithin = (root: ParentNode): ReadonlyArray<HTMLElement> =>
+  Array.filter(
+    Array.fromIterable(root.querySelectorAll(TABBABLE_SELECTOR)),
+    isTabbable,
+  )
+
+const panelTabbables = (panel: HTMLElement): ReadonlyArray<HTMLElement> => {
+  const descendants = tabbablesWithin(panel)
+
+  if (isTabbable(panel)) {
+    return [panel, ...descendants]
+  }
+
+  return descendants
+}
+
+const nextTabbableAfterTrigger = (
+  button: HTMLElement,
+  panel: HTMLElement,
+  owner: ParentNode,
+): Option.Option<HTMLElement> => {
+  const tabbables = tabbablesWithin(owner)
+
+  return pipe(
+    Array.findFirstIndex(tabbables, candidate => candidate === button),
+    Option.flatMap(buttonIndex =>
+      Array.findFirst(
+        Array.drop(tabbables, buttonIndex + 1),
+        candidate => candidate !== panel && !panel.contains(candidate),
+      ),
+    ),
+  )
+}
+
+const isPlainTab = (event: KeyboardEvent): boolean =>
+  event.key === 'Tab' &&
+  !event.defaultPrevented &&
+  !event.altKey &&
+  !event.ctrlKey &&
+  !event.metaKey
+
 /** Positions a floating element relative to its button using Floating UI, then
  *  returns a cleanup function. Designed to be called inside an `OnMount`
  *  action: the consumer wraps the call in `Effect.sync` and stashes the
  *  returned cleanup in the `Mount` result. When `interceptTab` is true
- *  (default), Tab key in portal mode refocuses the button. Set to false for
- *  components like Popover where Tab should navigate naturally within the
- *  panel. When `focusAfterPosition` is true, the element is focused after the
+ *  (default), Tab inside a portaled panel refocuses the trigger. Set it to
+ *  false when Tab should move through the panel. With `disclosureTabOrder`,
+ *  that panel then sits after the trigger in the tab order. When
+ *  `focusAfterPosition` is true, the element is focused after the
  *  first position computation clears visibility, deferred via
  *  requestAnimationFrame so the element is painted before focus fires. That
  *  focus passes `preventScroll`. Floating UI has already placed the element
@@ -530,9 +603,78 @@ export const anchorSetup = (
     }
   }
 
+  const handleDisclosureTab = (event: Event): void => {
+    if (
+      !(event instanceof KeyboardEvent) ||
+      !isPlainTab(event) ||
+      document.activeElement !== event.target
+    ) {
+      return
+    }
+
+    const tabbables = panelTabbables(element)
+    const maybeFirst = Array.head(tabbables)
+    const maybeLast = Array.last(tabbables)
+
+    if (Option.isNone(maybeFirst) || Option.isNone(maybeLast)) {
+      return
+    }
+
+    if (event.shiftKey) {
+      if (event.target !== maybeFirst.value) {
+        return
+      }
+
+      event.preventDefault()
+      button.focus()
+      return
+    }
+
+    if (event.target !== maybeLast.value) {
+      return
+    }
+
+    const maybeNext = nextTabbableAfterTrigger(button, element, owner)
+
+    if (Option.isNone(maybeNext)) {
+      return
+    }
+
+    event.preventDefault()
+    maybeNext.value.focus()
+  }
+
+  const handleTriggerTab = (event: Event): void => {
+    if (
+      !(event instanceof KeyboardEvent) ||
+      !isPlainTab(event) ||
+      event.shiftKey ||
+      document.activeElement !== button
+    ) {
+      return
+    }
+
+    const maybeFirst = Array.head(panelTabbables(element))
+
+    if (Option.isNone(maybeFirst)) {
+      return
+    }
+
+    event.preventDefault()
+    maybeFirst.value.focus()
+  }
+
   const isTabIntercepted = isPortal && shouldInterceptTab
+  const isDisclosureTabOrder =
+    isPortal && (config.disclosureTabOrder ?? false) && !shouldInterceptTab
+
   if (isTabIntercepted) {
     element.addEventListener('keydown', handleTabKey)
+  }
+
+  if (isDisclosureTabOrder) {
+    element.addEventListener('keydown', handleDisclosureTab)
+    button.addEventListener('keydown', handleTriggerTab)
   }
 
   return () => {
@@ -542,6 +684,11 @@ export const anchorSetup = (
 
     if (isTabIntercepted) {
       element.removeEventListener('keydown', handleTabKey)
+    }
+
+    if (isDisclosureTabOrder) {
+      element.removeEventListener('keydown', handleDisclosureTab)
+      button.removeEventListener('keydown', handleTriggerTab)
     }
 
     element.removeAttribute('data-placement')
