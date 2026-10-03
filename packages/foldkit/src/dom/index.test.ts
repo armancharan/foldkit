@@ -447,6 +447,37 @@ describe('inertOthers', () => {
     }),
   )
 
+  it.effect(
+    'leaves attributes in place when the same id repeats the same selectors',
+    () =>
+      Effect.gen(function* () {
+        const { header } = buildDom()
+
+        yield* inertOthers('test', ['#menu-button', '#menu-items'])
+
+        const observer = new MutationObserver(() => undefined)
+        observer.observe(header, {
+          attributes: true,
+          attributeFilter: ['aria-hidden', 'inert'],
+        })
+
+        yield* inertOthers('test', ['#menu-button', '#menu-items'])
+
+        const records = observer.takeRecords()
+        observer.disconnect()
+
+        expect(records).toEqual([])
+        expect(header.inert).toBe(true)
+        expect(header.getAttribute('aria-hidden')).toBe('true')
+
+        yield* restoreInert('test')
+        expect(header.inert).toBeFalsy()
+        expect(header.getAttribute('aria-hidden')).toBeNull()
+
+        cleanupDom()
+      }),
+  )
+
   it.effect('handles missing selectors gracefully', () =>
     Effect.gen(function* () {
       buildDom()

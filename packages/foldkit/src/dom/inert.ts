@@ -204,10 +204,11 @@ const releaseStoredCleanups = (id: string): void => {
  * `aria-hidden="true"`. Walks each allowed element up to `document.body`,
  * marking siblings that don't contain an allowed element. Uses reference
  * counting so nested calls with different ids are safe. A repeated call with
- * the same id replaces that isolation: the previous cleanup runs before the
- * new selectors take effect, so one `restoreInert` for the id returns the
- * page to its original state. A restore before the pending render commits
- * invalidates the request before it can change the DOM.
+ * the same id replaces that isolation. The next isolation is taken before the
+ * previous cleanup runs, so an element held by both stays marked, and one
+ * `restoreInert` for the id returns the page to its original state. A restore
+ * before the pending render commits invalidates the request before it can
+ * change the DOM.
  *
  * @example
  * ```typescript
@@ -232,9 +233,10 @@ export const inertOthers = (
     }
 
     const allowedElements = resolveElements(allowedSelectors)
+    const dispose = isolateOutsideElements(allowedElements)
 
     releaseStoredCleanups(id)
-    inertState.cleanups.set(id, [isolateOutsideElements(allowedElements)])
+    inertState.cleanups.set(id, [dispose])
   })
 
 /**
