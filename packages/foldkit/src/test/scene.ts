@@ -19,7 +19,6 @@ import { serializedStylePropertyName } from '../domReflection.js'
 import type { File } from '../file/index.js'
 import type { FoldkitMountMarker } from '../html/index.js'
 import {
-  FOLDKIT_MOUNT_KEY,
   FileHandlerSymbol,
   __clearRuntime as clearHtmlRuntime,
   __htmlBuilder as htmlBuilderFor,
@@ -300,10 +299,8 @@ type InternalSceneSimulation<
 const slotKey = ({ name, occurrence }: PendingMount): string =>
   `${name}#${occurrence}`
 
-const mountMarkerOf = (node: VNode): FoldkitMountMarker | undefined => {
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  return node.data?.[FOLDKIT_MOUNT_KEY] as FoldkitMountMarker | undefined
-}
+const mountMarkerOf = (node: VNode): FoldkitMountMarker | undefined =>
+  node.data?.foldkitMount
 
 const vnodeChildren = (node: VNode): Array<VNode> =>
   Array.map(node.children ?? [], child =>
