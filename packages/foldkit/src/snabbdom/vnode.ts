@@ -34,6 +34,27 @@ export interface VNode {
   identity?: string
 }
 
+/** Whether two virtual nodes describe the same DOM element. The differ patches
+ * when this is true and creates a new element when it is false. */
+export const sameVnode = (vnode1: VNode, vnode2: VNode): boolean => {
+  if (vnode1 === vnode2) {
+    return true
+  }
+  if (vnode1.sel !== vnode2.sel) {
+    return false
+  }
+  if (vnode1.key !== vnode2.key) {
+    return false
+  }
+  if (vnode1.identity !== vnode2.identity) {
+    return false
+  }
+  if (vnode1.data?.is !== vnode2.data?.is) {
+    return false
+  }
+  return vnode1.sel !== undefined || typeof vnode1.text === typeof vnode2.text
+}
+
 export interface VNodeData<VNodeProps = Props> {
   [vnodeDataMaskKey]?: number
   props?: VNodeProps
