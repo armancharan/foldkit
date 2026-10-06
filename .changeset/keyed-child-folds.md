@@ -4,7 +4,7 @@
 
 `Update.foldChildAt` folds one child selected by key. It leaves the parent Model unchanged when `readAt` returns `None` for that key. For child OutMessages, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. `toParentOutMessage` takes the key and returns a matcher that can forward a child OutMessage.
 
-The example below stores several Applicant Submodel instances in an array.
+The example below stores applicant entries in an array, each with its own child Model.
 
 **Before (`foldChild`):** Create a fold that closes over each entry's key.
 

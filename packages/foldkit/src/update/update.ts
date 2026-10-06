@@ -803,8 +803,9 @@ export type ChildFoldAtWithDerivedParentOutMessage<
 /** {@link ChildFoldAtWithOutMessage} for a parent that forwards at least one
  * child OutMessage to its own parent. `toParentOutMessage` takes the key and
  * returns a matcher that produces parent OutMessages. Return `undefined` for
- * named variants that stop here. If `foldOutMessage` derives a parent
- * OutMessage, that result takes precedence over forwarding. */
+ * named child variants that should not reach the current Submodel's parent.
+ * If `foldOutMessage` derives a parent OutMessage, it takes precedence over
+ * forwarding. */
 export type ChildFoldAtWithParentOutMessage<
   ParentModel,
   ParentMessage,
@@ -865,7 +866,7 @@ type AnyKeyedChildFold = Readonly<{
 
 /** Folds one child selected by key into the parent update. `readAt` and
  * `writeAt` use the key to find and replace the child Model.
- * `toParentMessage` receives it when wrapping child Messages. The returned
+ * `toParentMessage` receives the key when wrapping child Messages. The returned
  * {@link FoldAt} runs data-first as `fold(model, key, input)` and data-last
  * as `fold(key, input)` for {@link combine}.
  *
@@ -875,11 +876,11 @@ type AnyKeyedChildFold = Readonly<{
  * to `toParentMessage`, then returns a matcher that produces a parent Step.
  * Callbacks that do not need the lifters can omit the context parameter.
  * To forward a child OutMessage, `toParentOutMessage` takes the key and
- * returns a matcher that produces a parent OutMessage. Both factories run
- * only when the child emits an OutMessage. If the local Step derives a
+ * returns a matcher that produces a parent OutMessage. Both factories are
+ * skipped when the child emits no OutMessage. If the local Step derives a
  * parent OutMessage, that result takes precedence over forwarding.
  *
- * For example, each applicant entry is its own child:
+ * For example, each applicant entry contains a child Model:
  *
  * ```ts
  * const foldApplicant = Update.foldChildAt({
