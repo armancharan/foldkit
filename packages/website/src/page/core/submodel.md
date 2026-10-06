@@ -160,8 +160,6 @@ Use `Update.foldChildAt` to run a child update for one key. `readAt` and `writeA
 
 When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. If a Step returns a child Command, take `FoldContext` as the second parameter and use its lifters. To forward an OutMessage, `toParentOutMessage` takes the key and returns a matcher that produces a parent OutMessage. Neither factory runs when the child emits no OutMessage.
 
-For a `HashMap`-backed collection, use `HashMap.get` in `readAt` and `HashMap.set` in `writeAt`. The fold does not depend on how the parent stores its children.
-
 ## Memoization Across Submodel Boundaries {#memoization}
 
 By default, a parent render runs each child view again. If profiling finds repeated work in a long list or expensive child view, place the embed site behind `createKeyedLazy` from `foldkit/html`.
