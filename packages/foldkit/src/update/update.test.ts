@@ -14,6 +14,7 @@ import {
   type Fold,
   type FoldAt,
   type FoldAtContext,
+  type FoldAtWithOutMessage,
   type FoldContext,
   type FoldWithOutMessage,
   type Return,
@@ -1079,6 +1080,112 @@ describe('foldChildren', () => {
     expect(rowFold.model.rows).toEqual([
       { id: 'a', counter: { value: 2 } },
       { id: 'b', counter: { value: 5 } },
+    ])
+  })
+
+  it('forwards the child OutMessage with the key', () => {
+    type ForwardedRow = Readonly<{ _tag: 'ForwardedRow'; id: string }>
+
+    const foldForwardedRow = foldChildren({
+      update: counterUpdateWithOutMessage,
+      readAt: (model: RowsModel, id: string) =>
+        Option.map(
+          Array.findFirst(model.rows, row => row.id === id),
+          row => row.counter,
+        ),
+      writeAt: (model, id, nextCounter) =>
+        modifyFields(model, {
+          rows: Array.map(row =>
+            row.id === id
+              ? modifyFields(row, { counter: () => nextCounter })
+              : row,
+          ),
+        }),
+      toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+      toParentOutMessage: (id): ForwardedRow => ({
+        _tag: 'ForwardedRow',
+        id,
+      }),
+    })
+
+    expectTypeOf(foldForwardedRow).toEqualTypeOf<
+      FoldAtWithOutMessage<
+        RowsModel,
+        GotRowMessage,
+        string,
+        CounterMessage,
+        ForwardedRow
+      >
+    >()
+
+    const rowFold = foldForwardedRow(rowsModel, 'b', Message.BumpedValue())
+    expect(rowFold.outMessage).toEqual({ _tag: 'ForwardedRow', id: 'b' })
+  })
+
+  it('lets a derived OutMessage replace the forwarded one', () => {
+    type ForwardedRow = Readonly<{ _tag: 'ForwardedRow'; id: string }>
+    type DerivedRow = Readonly<{ _tag: 'DerivedRow'; id: string }>
+
+    const foldDerivedRow = foldChildren({
+      update: counterUpdateWithOutMessage,
+      readAt: (model: RowsModel, id: string) =>
+        Option.map(
+          Array.findFirst(model.rows, row => row.id === id),
+          row => row.counter,
+        ),
+      writeAt: (model, id, nextCounter) =>
+        modifyFields(model, {
+          rows: Array.map(row =>
+            row.id === id
+              ? modifyFields(row, { counter: () => nextCounter })
+              : row,
+          ),
+        }),
+      toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+      toParentOutMessage: (id): ForwardedRow => ({
+        _tag: 'ForwardedRow',
+        id,
+      }),
+      foldOutMessage:
+        (
+          _outMessage: ChangedValue,
+          { key }: FoldAtContext<CounterMessage, GotRowMessage, string>,
+        ): StepWithOutMessage<RowsModel, GotRowMessage, DerivedRow> =>
+        model => ({
+          model,
+          outMessage: { _tag: 'DerivedRow', id: key },
+        }),
+    })
+
+    const rowFold = foldDerivedRow(rowsModel, 'b', Message.BumpedValue())
+    expect(rowFold.outMessage).toEqual({ _tag: 'DerivedRow', id: 'b' })
+  })
+
+  it('omits the parent OutMessage when the lift returns undefined', () => {
+    const foldStoppedRow = foldChildren({
+      update: counterUpdateWithOutMessage,
+      readAt: (model: RowsModel, id: string) =>
+        Option.map(
+          Array.findFirst(model.rows, row => row.id === id),
+          row => row.counter,
+        ),
+      writeAt: (model, id, nextCounter) =>
+        modifyFields(model, {
+          rows: Array.map(row =>
+            row.id === id
+              ? modifyFields(row, { counter: () => nextCounter })
+              : row,
+          ),
+        }),
+      toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+      toParentOutMessage: () => undefined,
+    })
+
+    const rowFold = foldStoppedRow(rowsModel, 'b', Message.BumpedValue())
+    expect(rowFold.outMessage).toBeUndefined()
+    expect(rowFold.model.rows).toEqual([
+      { id: 'a', counter: { value: 1 } },
+      { id: 'b', counter: { value: 6 } },
     ])
   })
 

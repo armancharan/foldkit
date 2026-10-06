@@ -46,12 +46,27 @@ const foldApplicant = Update.foldChildren({
     GotApplicantMessage({ entryId, message }),
 })
 
-GotApplicantMessage: ({ entryId, message }) =>
-  foldApplicant(model, entryId, message)
-
-const nextApplicants = Update.reconcileChildren(
-  model.applicants,
-  applicantIds,
-  applicant => applicant.id,
-  id => ({ id, entry: Applicant.init() }),
-)
+const update = (model: Model) => ({
+  GotApplicantMessage: ({
+    entryId,
+    message,
+  }: {
+    entryId: string
+    message: Applicant.Message
+  }) => foldApplicant(model, entryId, message),
+  LoadedApplicants: ({
+    applicantIds,
+  }: {
+    applicantIds: ReadonlyArray<string>
+  }) => ({
+    model: modifyFields(model, {
+      applicants: () =>
+        Update.reconcileChildren(
+          model.applicants,
+          applicantIds,
+          applicant => applicant.id,
+          id => ({ id, entry: Applicant.init() }),
+        ),
+    }),
+  }),
+})

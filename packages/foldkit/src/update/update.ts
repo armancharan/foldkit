@@ -3,7 +3,7 @@ import {
   type Effect,
   Function,
   HashMap,
-  HashSet,
+  MutableHashSet,
   Option,
   pipe,
 } from 'effect'
@@ -725,44 +725,6 @@ type KeyedChildFold<
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
 }>
 
-type KeyedChildFoldWithPlainOutMessage<
-  ParentModel,
-  ParentMessage,
-  ChildModel,
-  Key,
-  Input,
-  ChildMessage,
-  ChildOutMessage,
-  ChildRequirements = never,
-  OutMessageStepRequirements = ChildRequirements,
-  OutMessageStepMessage = ParentMessage,
-> = Readonly<{
-  update: (
-    childModel: ChildModel,
-    input: Input,
-  ) => ReturnWithOutMessage<
-    ChildModel,
-    ChildMessage,
-    ChildOutMessage,
-    ChildRequirements
-  >
-  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
-  writeAt: (
-    model: ParentModel,
-    key: Key,
-    nextChildModel: ChildModel,
-  ) => ParentModel
-  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
-  foldOutMessage: (
-    outMessage: ChildOutMessage,
-    context: FoldContext<ChildMessage, ParentMessage>,
-  ) => Step<
-    NoInfer<ParentModel>,
-    OutMessageStepMessage,
-    OutMessageStepRequirements
-  >
-}>
-
 type KeyedChildFoldWithOutMessage<
   ParentModel,
   ParentMessage,
@@ -873,6 +835,7 @@ type KeyedChildFoldWithParentOutMessage<
   ) => ParentModel
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
   toParentOutMessage: (
+    key: Key,
     outMessage: ChildOutMessage,
   ) => ParentOutMessage | undefined
   foldOutMessage?: (
@@ -891,7 +854,7 @@ type AnyKeyedChildFold = Readonly<{
   readAt: (model: any, key: any) => Option.Option<any>
   writeAt: (model: any, key: any, nextChildModel: any) => any
   toParentMessage: (key: any, message: any) => any
-  toParentOutMessage?: (outMessage: any) => any | undefined
+  toParentOutMessage?: (key: any, outMessage: any) => any | undefined
   foldOutMessage?: (
     outMessage: any,
     context: FoldContext<any, any> & Readonly<{ key: any }>,
@@ -906,11 +869,12 @@ type AnyKeyedChildFold = Readonly<{
  * When `readAt` returns `None`, the fold returns `{ model }`. A Message
  * for a child that has left the collection changes nothing.
  *
- * `foldOutMessage` receives the key on its {@link FoldContext}, as `key`,
- * beside lifters bound to `toParentMessage` for that key. Add
- * `toParentOutMessage` only when at least one child OutMessage should
- * continue to the current Submodel's parent. A derived OutMessage from
- * `foldOutMessage` replaces that lift for the dispatch.
+ * `foldOutMessage` receives the key on its {@link FoldAtContext}, beside
+ * lifters bound to `toParentMessage` for that key. `toParentOutMessage`
+ * takes the same key and the child OutMessage. Add it only when at least
+ * one child OutMessage should continue to the current Submodel's parent.
+ * Return `undefined` for a named variant that stops here. A derived
+ * OutMessage from `foldOutMessage` replaces that lift for the dispatch.
  *
  * For example, each applicant entry is its own child:
  *
@@ -1020,37 +984,6 @@ export const foldChildren: {
     Input,
     ChildMessage,
     ChildOutMessage,
-    Key,
-    ChildRequirements = never,
-    OutMessageStepRequirements = ChildRequirements,
-    OutMessageStepMessage = ParentMessage,
-  >(
-    childFold: KeyedChildFoldWithPlainOutMessage<
-      ParentModel,
-      ParentMessage,
-      ChildModel,
-      Key,
-      Input,
-      ChildMessage,
-      ChildOutMessage,
-      ChildRequirements,
-      OutMessageStepRequirements,
-      OutMessageStepMessage
-    >,
-  ): FoldAt<
-    ParentModel,
-    ParentMessage | OutMessageStepMessage,
-    Key,
-    Input,
-    ChildRequirements | OutMessageStepRequirements
-  >
-  <
-    ParentModel,
-    ParentMessage,
-    ChildModel,
-    Input,
-    ChildMessage,
-    ChildOutMessage,
     ParentOutMessage,
     Key,
     ChildRequirements = never,
@@ -1094,15 +1027,19 @@ export const foldChildren: {
     const toParentMessage = (message: any) =>
       keyedFold.toParentMessage(key, message)
     const foldOutMessage = keyedFold.foldOutMessage
+    const toParentOutMessage = keyedFold.toParentOutMessage
     const childFold: AnyChildFold = {
       update: keyedFold.update,
       read: parentModel => keyedFold.readAt(parentModel, key),
       write: (parentModel, nextChildModel) =>
         keyedFold.writeAt(parentModel, key, nextChildModel),
       toParentMessage,
-      ...(keyedFold.toParentOutMessage === undefined
+      ...(toParentOutMessage === undefined
         ? {}
-        : { toParentOutMessage: keyedFold.toParentOutMessage }),
+        : {
+            toParentOutMessage: (outMessage: any) =>
+              toParentOutMessage(key, outMessage),
+          }),
       ...(foldOutMessage === undefined
         ? {}
         : {
@@ -1119,10 +1056,14 @@ export const foldChildren: {
     )
   })
 
-/** Rebuilds a collection of child Models from the ids that should exist
- * now. An id that is already present keeps that child. An id that arrived
- * is created with `init`. An id that left is dropped. The result follows
+/** Rebuilds an array of child Models from the ids that should exist now.
+ * An id that is already present keeps that child. An id that arrived is
+ * created with `init`. An id that left is dropped. The result follows
  * `ids`, and a repeated id appears once, at its first occurrence.
+ *
+ * `init` returns a Model. An arrival whose init returns Commands is a
+ * separate {@link foldChildInit} for that child. A `HashMap` stays on
+ * `HashMap.get`, `HashMap.set`, and `HashMap.remove`.
  *
  * `entryId` reads the id stored on each child. Ids are compared with
  * Equal. */
@@ -1138,31 +1079,21 @@ export const reconcileChildren = <Entry, Id>(
       entry,
     ]),
   )
+  const seen = MutableHashSet.empty<Id>()
+  const nextEntries: Array<Entry> = []
 
-  return pipe(
-    Array.fromIterable(ids),
-    Array.reduce(
-      {
-        seen: HashSet.empty<Id>(),
-        nextEntries: Array.empty<Entry>(),
-      },
-      (state, id) => {
-        if (HashSet.has(state.seen, id)) {
-          return state
-        }
+  for (const id of ids) {
+    if (MutableHashSet.has(seen, id)) {
+      continue
+    }
 
-        const entry = Option.getOrElse(HashMap.get(currentById, id), () =>
-          init(id),
-        )
+    MutableHashSet.add(seen, id)
+    nextEntries.push(
+      Option.getOrElse(HashMap.get(currentById, id), () => init(id)),
+    )
+  }
 
-        return {
-          seen: HashSet.add(state.seen, id),
-          nextEntries: Array.append(state.nextEntries, entry),
-        }
-      },
-    ),
-    state => state.nextEntries,
-  )
+  return nextEntries
 }
 
 const makeFoldContext = (
