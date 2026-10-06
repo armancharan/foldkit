@@ -869,8 +869,7 @@ type AnyKeyedChildFold = Readonly<{
  * {@link FoldAt} runs data-first as `fold(model, key, input)` and data-last
  * as `fold(key, input)` for {@link combine}.
  *
- * When `readAt` returns `None`, the fold returns `{ model }`. A Message
- * for a child that has left the collection changes nothing.
+ * When `readAt` returns `None` for the key, the fold returns `{ model }`.
  *
  * `foldOutMessage` takes the key and a {@link FoldContext} of lifters bound
  * to `toParentMessage`, then returns a matcher that produces a parent Step.
