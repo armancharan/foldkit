@@ -83,7 +83,7 @@ The resulting fold reads the child, runs its update, writes it back, and lifts i
 
 ::Snippet{name="submodelFoldChild" label="Using foldChild"}
 
-`read` returns an `Option` because a routed page or keyed child may no longer exist when its Message arrives. `None` makes the fold a no-op. An always-present child returns `Option.some(model.settings)`.
+`read` returns an `Option` because a routed page or child entry may be absent from the parent Model. When `read` returns `None`, the fold leaves the parent Model unchanged. An always-present child returns `Option.some(model.settings)`.
 
 The fold is dual. `foldSettings(model, message)` runs it immediately. `foldSettings(message)` returns an `Update.Step<ParentModel, ParentMessage>` for `Update.combine`. Close over per-dispatch context in the `update` field, and apply route gates before calling the fold.
 
@@ -150,7 +150,7 @@ A parent can hold a fixed or dynamic number of child instances.
 
 For a fixed set, give each child its own Model field and `slotId`. For a dynamic set, start with an array. Use the same stable identifier for the row key, `slotId`, and wrapper Message.
 
-When only one child is active at a time, store one child Model and an `Option` of the open key. A row menu that closes before another opens is that shape. A collection is for children that are live together, such as an editor on every row or upload progress for every file.
+When at most one child instance is active, store one child Model and an `Option` of its key. A table with at most one open row menu can share one Menu Model. Use a collection when multiple instances need independent state at once, such as editors on several rows or progress for several uploads.
 
 ### Folding a Child by Key {#fold-child-at}
 
