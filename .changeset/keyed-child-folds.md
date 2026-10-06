@@ -2,9 +2,9 @@
 'foldkit': minor
 ---
 
-`Update.foldChildAt` folds one child selected by key. It leaves the parent Model unchanged when `readAt` returns `None` for that key. For child OutMessages, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. `toParentOutMessage` takes the key and returns a matcher that can forward a child OutMessage.
+`Update.foldChildAt` folds one keyed Submodel. It leaves the parent Model unchanged when `readAt` returns `None` for that key. For child OutMessages, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. `toParentOutMessage` takes the key and returns a matcher that can forward a child OutMessage.
 
-The example below stores applicant entries in an array, each with its own child Model.
+The example below stores Applicant Submodels in an array.
 
 **Before (`foldChild`):** Create a fold that closes over each entry's key.
 

@@ -864,7 +864,7 @@ type AnyKeyedChildFold = Readonly<{
   ) => (outMessage: any) => (model: any) => AnyUpdateReturn
 }>
 
-/** Folds one child selected by key into the parent update. `readAt` and
+/** Folds one keyed Submodel into the parent update. `readAt` and
  * `writeAt` use the key to find and replace the child Model.
  * `toParentMessage` receives the key when wrapping child Messages. The returned
  * {@link FoldAt} runs data-first as `fold(model, key, input)` and data-last
@@ -880,7 +880,7 @@ type AnyKeyedChildFold = Readonly<{
  * skipped when the child emits no OutMessage. If the local Step derives a
  * parent OutMessage, that result takes precedence over forwarding.
  *
- * For example, each applicant entry contains a child Model:
+ * For example, the parent stores Applicant Submodels in an array:
  *
  * ```ts
  * const foldApplicant = Update.foldChildAt({
