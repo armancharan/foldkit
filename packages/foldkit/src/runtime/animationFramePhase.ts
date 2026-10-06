@@ -10,9 +10,10 @@ export const beginAnimationFrameCallbackPhase = (): void => {
 
 /** Closes one {@link beginAnimationFrameCallbackPhase}. */
 export const endAnimationFrameCallbackPhase = (): void => {
-  if (animationFrameCallbackDepth > 0) {
-    animationFrameCallbackDepth -= 1
+  if (animationFrameCallbackDepth <= 0) {
+    return
   }
+  animationFrameCallbackDepth -= 1
 }
 
 /** Whether a Message is being processed from an animation-frame callback
