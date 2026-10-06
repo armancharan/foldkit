@@ -1,4 +1,4 @@
-import { Array, Option, pipe } from 'effect'
+import { Array, Option } from 'effect'
 import { Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
@@ -46,34 +46,8 @@ const foldApplicant = Update.foldChildAt({
     Message.GotApplicantMessage({ entryId, message }),
 })
 
-const makeApplicant = (applicantId: string) => ({
-  id: applicantId,
-  entry: Applicant.init(),
-})
-
 export const update = (model: Model, message: Message) =>
   Message.match<Update.Return<Model, Message>>(message, {
     GotApplicantMessage: ({ entryId, message }) =>
       foldApplicant(model, entryId, message),
-    UpdatedApplicantIds: ({ applicantIds }) => {
-      const nextApplicants = pipe(
-        applicantIds,
-        Array.dedupe,
-        Array.map(applicantId =>
-          Option.getOrElse(
-            Array.findFirst(
-              model.applicants,
-              applicant => applicant.id === applicantId,
-            ),
-            () => makeApplicant(applicantId),
-          ),
-        ),
-      )
-
-      return {
-        model: modifyFields(model, {
-          applicants: () => nextApplicants,
-        }),
-      }
-    },
   })

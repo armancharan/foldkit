@@ -152,21 +152,15 @@ For a fixed set, give each child its own Model field and `slotId`. For a dynamic
 
 When only one child is active at a time, store one child Model and an `Option` of the open key. A row menu that closes before another opens is that shape. A collection is for children that are live together, such as an editor on every row or upload progress for every file.
 
-::Snippet{name="submodelMultipleInstances" label="Folding and reconciling child instances" class="mb-4"}
-
 ### Folding a Child by Key {#fold-child-at}
+
+::Snippet{name="submodelMultipleInstances" label="Folding a child in a collection" class="mb-4"}
 
 Use `Update.foldChildAt` to run a child update for one key. `readAt` and `writeAt` find and replace that child's Model; `toParentMessage` receives the key when wrapping the result Message of each child Command. If `readAt` returns `None` because the child has left the collection, a late Message leaves the parent Model unchanged. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
 
 When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. If a Step returns a child Command, take `FoldContext` as the second parameter and use its lifters. To forward an OutMessage, `toParentOutMessage` takes the key and returns a matcher that produces a parent OutMessage. Neither factory runs when the child emits no OutMessage.
 
-### Reconciling Child Entries {#reconcile-children}
-
-When the set of child keys changes, update the collection in the parent. The example's `UpdatedApplicantIds` branch keeps the first occurrence of each requested id, reuses an existing entry when it finds one, and calls `makeApplicant` for a new id. The resulting array follows the requested order and omits entries whose ids are absent.
-
-`makeApplicant` constructs an entry directly. If a child's `init` or `boot` returns Commands or an OutMessage, fold that result separately.
-
-If profiling shows that finding and replacing a child in an array is expensive, store children in a `HashMap`. `foldChildAt` still works because `readAt` can call `HashMap.get` and `writeAt` can call `HashMap.set`. Update the map with `HashMap` operations when its set of keys changes.
+For a `HashMap`-backed collection, use `HashMap.get` in `readAt` and `HashMap.set` in `writeAt`. The fold does not depend on how the parent stores its children.
 
 ## Memoization Across Submodel Boundaries {#memoization}
 
