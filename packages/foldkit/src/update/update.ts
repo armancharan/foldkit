@@ -696,8 +696,8 @@ export type FoldAtWithOutMessage<
 }
 
 /** Configuration for {@link foldChildAt} when the child emits no
- * OutMessage. The key selects the child Model and identifies its wrapper
- * Message. */
+ * OutMessage. The key selects the child Model for `readAt` and `writeAt`.
+ * `toParentMessage` receives the same key when wrapping child Messages. */
 export type ChildFoldAt<
   ParentModel,
   ParentMessage,
@@ -721,8 +721,8 @@ export type ChildFoldAt<
 }>
 
 /** {@link ChildFoldAt} for a child that emits OutMessages handled locally.
- * `foldOutMessage` takes the key and command lifters, then returns a
- * matcher for the child's OutMessage. */
+ * `foldOutMessage` takes the key and a {@link FoldContext} for lifting child
+ * Commands. It returns a matcher whose handlers produce parent Steps. */
 export type ChildFoldAtWithOutMessage<
   ParentModel,
   ParentMessage,
@@ -808,10 +808,11 @@ export type ChildFoldAtWithDerivedParentOutMessage<
   >
 }>
 
-/** {@link ChildFoldAtWithOutMessage} for a parent that forwards child
- * OutMessages upward. `toParentOutMessage` takes the key and returns an
- * OutMessage mapper. A derived OutMessage from `foldOutMessage`, when
- * provided, replaces the forwarded one for that dispatch. */
+/** {@link ChildFoldAtWithOutMessage} for a parent that forwards at least one
+ * child OutMessage to its own parent. `toParentOutMessage` takes the key and
+ * returns a matcher that produces parent OutMessages. Return `undefined` for
+ * named variants that stop here. If `foldOutMessage` derives a parent
+ * OutMessage, that result takes precedence over forwarding. */
 export type ChildFoldAtWithParentOutMessage<
   ParentModel,
   ParentMessage,
@@ -870,22 +871,22 @@ type AnyKeyedChildFold = Readonly<{
   ) => (outMessage: any) => (model: any) => AnyUpdateReturn
 }>
 
-/** Folds one child in a collection. `readAt`, `writeAt`, and
- * `toParentMessage` take that child's key. The returned {@link FoldAt}
- * runs data-first as `fold(model, key, input)` and data-last as
- * `fold(key, input)` for {@link combine}.
+/** Folds one child selected by key into the parent update. `readAt` and
+ * `writeAt` use the key to find and replace the child Model.
+ * `toParentMessage` receives it when wrapping child Messages. The returned
+ * {@link FoldAt} runs data-first as `fold(model, key, input)` and data-last
+ * as `fold(key, input)` for {@link combine}.
  *
  * When `readAt` returns `None`, the fold returns `{ model }`. A Message
  * for a child that has left the collection changes nothing.
  *
  * `foldOutMessage` takes the key and a {@link FoldContext} of lifters bound
- * to `toParentMessage`, then returns a child OutMessage matcher. Callbacks
- * that do not need the lifters can omit the context parameter. Add
- * `toParentOutMessage` when at least one child OutMessage should continue
- * to the current Submodel's parent; it takes the key and returns an
- * OutMessage mapper. These factories run only when the child emits an
- * OutMessage. A derived OutMessage from `foldOutMessage` replaces the
- * one-to-one lift for that dispatch.
+ * to `toParentMessage`, then returns a matcher that produces a parent Step.
+ * Callbacks that do not need the lifters can omit the context parameter.
+ * To forward a child OutMessage, `toParentOutMessage` takes the key and
+ * returns a matcher that produces a parent OutMessage. Both factories run
+ * only when the child emits an OutMessage. If the local Step derives a
+ * parent OutMessage, that result takes precedence over forwarding.
  *
  * For example, each applicant entry is its own child:
  *
@@ -1067,15 +1068,15 @@ export const foldChildAt: {
     )
   })
 
-/** Reconciles an array of entries containing child Models with the keys
- * that should exist now. A key that is already present keeps its entry.
- * A key that arrived gets a new entry from `makeEntry`. A key that left is
- * dropped. The result follows `keys`, and a repeated key appears once, at
- * its first occurrence.
+/** Reconciles an array of child entries with the requested keys. It reuses
+ * an existing entry when its key remains, calls `makeEntry` once for each new
+ * key, and omits entries whose keys are absent. The result follows `keys`;
+ * repeated requested keys appear once at their first position. Existing
+ * entries must have unique keys.
  *
- * `getEntryKey` reads the key stored on each entry. Keys are compared with
- * Equal. `makeEntry` returns only an entry; fold child init or boot
- * results separately when they contain Commands or OutMessages. */
+ * `getEntryKey` reads the key from each entry. Keys use Effect's Equal
+ * semantics. `makeEntry` returns an entry directly. Fold a child init or boot
+ * result separately when it includes Commands or an OutMessage. */
 export const reconcileChildren = <Entry, Key>(
   entries: ReadonlyArray<Entry>,
   keys: Iterable<Key>,

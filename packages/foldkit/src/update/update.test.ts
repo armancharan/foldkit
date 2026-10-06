@@ -1040,7 +1040,7 @@ describe('foldChildAt', () => {
     }
   })
 
-  it('is a no-op when the key is absent', () => {
+  it('leaves the parent unchanged when the key is absent', () => {
     const rowFold = foldRow(rowsModel, 'missing', Message.BumpedValue())
     expect(rowFold.model).toBe(rowsModel)
     expect(rowFold.commands ?? []).toEqual([])
@@ -1079,7 +1079,7 @@ describe('foldChildAt', () => {
     expect(forwardRowOutMessage).toHaveBeenCalledExactlyOnceWith('b')
   })
 
-  it('gives foldOutMessage the key after the child is written', () => {
+  it('passes the key to foldOutMessage after writing the child', () => {
     const recordId = vi.fn<(id: string) => void>()
     const foldRowOutMessage = foldChildAt({
       update: counterUpdateWithOutMessage,

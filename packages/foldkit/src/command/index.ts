@@ -488,9 +488,8 @@ export const mapMessage: {
  *  `undefined`, it returns an empty array. `Update.foldChild`,
  *  `Update.foldChildStep`, `Update.foldChildInit`, `Update.foldChildInits`,
  *  and `Update.foldChildAt` handle this mapping for application Submodels.
- *  Use `mapMessages` for a
- *  standalone batch of Commands or when route-gated initialization includes
- *  only the active child's Commands:
+ *  Use `mapMessages` for a standalone batch of Commands or when route-gated
+ *  initialization includes only the active child's Commands:
  *
  *  ```ts
  *  const commands = Command.mapMessages(

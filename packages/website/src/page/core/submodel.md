@@ -148,21 +148,25 @@ Foldkit throws while building the view when sibling boundaries reuse a `slotId`.
 
 A parent can hold a fixed or dynamic number of child instances.
 
-For a fixed set, give each child its own Model field and `slotId`. For a dynamic set, store the children in an array. Use the same stable identifier for the row key, `slotId`, and wrapper Message.
-
-::Snippet{name="submodelMultipleInstances" label="Multiple instances" class="mb-4"}
-
-`Update.foldChildAt` reads and writes the child for one key. Call it with the parent Model, the key, and the child input. When that key is no longer in the collection, `readAt` returns `None` and a late Message changes nothing. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
-
-When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher for that OutMessage. It can also take a second `FoldContext` argument when the resulting Step returns a child Command. To forward the OutMessage, `toParentOutMessage` takes the key and returns its matcher. These matchers are created only when the child emits an OutMessage.
-
-`Update.reconcileChildren` is a pure array helper for a changing set of child Models. It keeps the entry for a key that remains, calls `makeEntry` for a key that arrived, and drops a key that left. `makeEntry` receives the arriving key and returns its entry. The result follows the new key order. A repeated key appears once.
-
-Fold a child's `init` or `boot` result separately when it returns Commands or an OutMessage. `reconcileChildren` returns entries only.
-
-Start with an array. `reconcileChildren` accepts and returns arrays. If profiling shows that finding and replacing a child is expensive, store children in a `HashMap` keyed by their existing keys. `foldChildAt` works with a `HashMap` because `readAt` can return `HashMap.get`.
+For a fixed set, give each child its own Model field and `slotId`. For a dynamic set, start with an array. Use the same stable identifier for the row key, `slotId`, and wrapper Message.
 
 When only one child is active at a time, store one child Model and an `Option` of the open key. A row menu that closes before another opens is that shape. A collection is for children that are live together, such as an editor on every row or upload progress for every file.
+
+::Snippet{name="submodelMultipleInstances" label="Folding and reconciling child instances" class="mb-4"}
+
+### Folding a Child by Key {#fold-child-at}
+
+Use `Update.foldChildAt` to run a child update for one key. `readAt` and `writeAt` find and replace that child's Model; `toParentMessage` receives the key when wrapping the result Message of each child Command. If `readAt` returns `None` because the child has left the collection, a late Message leaves the parent Model unchanged. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
+
+When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. If a Step returns a child Command, take `FoldContext` as the second parameter and use its lifters. To forward an OutMessage, `toParentOutMessage` takes the key and returns a matcher that produces a parent OutMessage. Neither factory runs when the child emits no OutMessage.
+
+### Reconciling Child Entries {#reconcile-children}
+
+Use `Update.reconcileChildren` when the set of child keys changes. It returns entries in the requested key order: existing entries are reused, `makeEntry` creates one entry for each new key, and entries whose keys are absent are omitted. Repeated requested keys appear once at their first position. Existing entries must have unique keys.
+
+`makeEntry` returns an entry directly. Fold a child's `init` or `boot` result separately when it includes Commands or an OutMessage.
+
+If profiling shows that finding and replacing a child in an array is expensive, store children in a `HashMap`. `foldChildAt` still works because `readAt` can call `HashMap.get` and `writeAt` can call `HashMap.set`. `reconcileChildren` accepts and returns arrays; reconcile a map with `HashMap` operations.
 
 ## Memoization Across Submodel Boundaries {#memoization}
 
