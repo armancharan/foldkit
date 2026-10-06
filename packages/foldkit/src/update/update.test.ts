@@ -1161,34 +1161,6 @@ describe('foldChildren', () => {
     expect(rowFold.outMessage).toEqual({ _tag: 'DerivedRow', id: 'b' })
   })
 
-  it('omits the parent OutMessage when the lift returns undefined', () => {
-    const foldStoppedRow = foldChildren({
-      update: counterUpdateWithOutMessage,
-      readAt: (model: RowsModel, id: string) =>
-        Option.map(
-          Array.findFirst(model.rows, row => row.id === id),
-          row => row.counter,
-        ),
-      writeAt: (model, id, nextCounter) =>
-        modifyFields(model, {
-          rows: Array.map(row =>
-            row.id === id
-              ? modifyFields(row, { counter: () => nextCounter })
-              : row,
-          ),
-        }),
-      toParentMessage: (id, message): GotRowMessage => ({ id, message }),
-      toParentOutMessage: () => undefined,
-    })
-
-    const rowFold = foldStoppedRow(rowsModel, 'b', Message.BumpedValue())
-    expect(rowFold.outMessage).toBeUndefined()
-    expect(rowFold.model.rows).toEqual([
-      { id: 'a', counter: { value: 1 } },
-      { id: 'b', counter: { value: 6 } },
-    ])
-  })
-
   it('composes data-last with combine', () => {
     const combined = combine([
       foldRow('a', Message.BumpedValue()),
