@@ -27,27 +27,31 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
     ),
   )
 
-const foldApplicant = (entryId: string) =>
-  Update.foldChild({
-    update: Applicant.update,
-    read: (model: Model) =>
-      Option.map(
-        Array.findFirst(
-          model.applicants,
-          applicant => applicant.id === entryId,
-        ),
-        applicant => applicant.entry,
+const foldApplicant = Update.foldChildren({
+  update: Applicant.update,
+  readAt: (model: Model, entryId: string) =>
+    Option.map(
+      Array.findFirst(model.applicants, applicant => applicant.id === entryId),
+      applicant => applicant.entry,
+    ),
+  writeAt: (model, entryId, nextEntry) =>
+    modifyFields(model, {
+      applicants: Array.map(applicant =>
+        applicant.id === entryId
+          ? modifyFields(applicant, { entry: () => nextEntry })
+          : applicant,
       ),
-    write: (model, nextEntry) =>
-      modifyFields(model, {
-        applicants: Array.map(applicant =>
-          applicant.id === entryId
-            ? modifyFields(applicant, { entry: () => nextEntry })
-            : applicant,
-        ),
-      }),
-    toParentMessage: message => GotApplicantMessage({ entryId, message }),
-  })
+    }),
+  toParentMessage: (entryId, message) =>
+    GotApplicantMessage({ entryId, message }),
+})
 
 GotApplicantMessage: ({ entryId, message }) =>
-  foldApplicant(entryId)(model, message)
+  foldApplicant(model, entryId, message)
+
+const nextApplicants = Update.reconcileChildren(
+  model.applicants,
+  applicantIds,
+  applicant => applicant.id,
+  id => ({ id, entry: Applicant.init() }),
+)

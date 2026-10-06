@@ -54,10 +54,11 @@ export const GenerateEntryId = Command.define('GenerateEntryId', {
 
 // UPDATE
 
-const foldEntryOutMessage: (
-  entryId: string,
-) => (outMessage: Entry.OutMessage) => Update.Step<Model, Message> = entryId =>
-  Entry.OutMessage.match<Update.Step<Model, Message>>({
+const foldEntryOutMessage = (
+  outMessage: Entry.OutMessage,
+  { key: entryId }: Update.FoldAtContext<Entry.Message, Message, string>,
+) =>
+  Entry.OutMessage.match<Update.Step<Model, Message>>(outMessage, {
     Removed: () => model => ({
       model: modifyFields(model, {
         entries: Array.filter(entry => entry.id !== entryId),
@@ -65,18 +66,18 @@ const foldEntryOutMessage: (
     }),
   })
 
-const foldEntry = (entryId: string) =>
-  Update.foldChild({
-    update: Entry.update,
-    read: (model: Model) =>
-      Array.findFirst(model.entries, entry => entry.id === entryId),
-    write: (model, nextEntry) =>
-      modifyFields(model, {
-        entries: Array.map(entry => (entry.id === entryId ? nextEntry : entry)),
-      }),
-    toParentMessage: message => Message.GotEntryMessage({ entryId, message }),
-    foldOutMessage: foldEntryOutMessage(entryId),
-  })
+const foldEntry = Update.foldChildren({
+  update: Entry.update,
+  readAt: (model: Model, entryId: string) =>
+    Array.findFirst(model.entries, entry => entry.id === entryId),
+  writeAt: (model, entryId, nextEntry) =>
+    modifyFields(model, {
+      entries: Array.map(entry => (entry.id === entryId ? nextEntry : entry)),
+    }),
+  toParentMessage: (entryId, message) =>
+    Message.GotEntryMessage({ entryId, message }),
+  foldOutMessage: foldEntryOutMessage,
+})
 
 export const update = (model: Model, message: Message) =>
   Message.match<Update.Return<Model, Message>>(message, {
@@ -97,7 +98,7 @@ export const update = (model: Model, message: Message) =>
     }),
 
     GotEntryMessage: ({ entryId, message }) =>
-      foldEntry(entryId)(model, message),
+      foldEntry(model, entryId, message),
   })
 
 // VALIDATION SUMMARY

@@ -152,9 +152,13 @@ For a fixed set, give each child its own Model field and `slotId`. For a dynamic
 
 ::Snippet{name="submodelMultipleInstances" label="Multiple instances" class="mb-4"}
 
-`foldApplicant(entryId)` reads and writes only the matching child. When the child no longer exists, `read` returns `None` and a late Message becomes a no-op. The [job-application example](/example-apps/job-application) uses this shape for repeated education and work-history entries.
+`Update.foldChildren` reads and writes the child for one key. Call it with the parent Model, the key, and the child input. When that key is no longer in the collection, `readAt` returns `None` and a late Message changes nothing. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
 
-Start with an array. If profiling shows that finding and replacing a child is expensive, use a `HashMap` keyed by the same identifier. `Update.foldChild` still works because `HashMap.get` already returns an `Option`.
+When the set of ids changes, `Update.reconcileChildren` keeps the child for an id that remains, inits an id that arrived, and drops an id that left. The result follows the new id order. A repeated id appears once.
+
+Start with an array. If profiling shows that finding and replacing a child is expensive, use a `HashMap` keyed by the same identifier. `readAt` can return `HashMap.get`.
+
+When only one child is active at a time, store one child Model and an `Option` of the open key. A row menu that closes before another opens is that shape. A collection is for children that are live together, such as an editor on every row or upload progress for every file.
 
 ## Memoization Across Submodel Boundaries {#memoization}
 

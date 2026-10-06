@@ -1,4 +1,12 @@
-import { Array, type Effect, Function, Option, pipe } from 'effect'
+import {
+  Array,
+  type Effect,
+  Function,
+  HashMap,
+  HashSet,
+  Option,
+  pipe,
+} from 'effect'
 
 import { type AsyncData } from '../asyncData/index.js'
 import { type Command, mapMessage, mapMessages } from '../command/index.js'
@@ -652,6 +660,508 @@ export const foldChild: {
 
   return Function.dual(2, (model: any, input: any) =>
     runChildFold(childFold, context, model, input),
+  )
+}
+
+/** {@link Fold} for one child addressed by key. Data-first runs the fold
+ * now (`fold(model, key, input)`). Data-last builds a composable
+ * {@link Step} (`fold(key, input)`, for {@link combine}). */
+export type FoldAt<ParentModel, ParentMessage, Key, Input, R = never> = {
+  (
+    model: ParentModel,
+    key: Key,
+    input: Input,
+  ): Return<ParentModel, ParentMessage, R>
+  (key: Key, input: Input): Step<ParentModel, ParentMessage, R>
+}
+
+/** {@link FoldContext} for {@link foldChildren}. `key` is the child the
+ * fold is addressing. The lifters use `toParentMessage` for that key. */
+export type FoldAtContext<ChildMessage, ParentMessage, Key> = FoldContext<
+  ChildMessage,
+  ParentMessage
+> &
+  Readonly<{ key: Key }>
+
+/** {@link FoldAt} whose result can carry the parent OutMessage. */
+export type FoldAtWithOutMessage<
+  ParentModel,
+  ParentMessage,
+  Key,
+  Input,
+  ParentOutMessage,
+  R = never,
+> = {
+  (
+    model: ParentModel,
+    key: Key,
+    input: Input,
+  ): ReturnWithOutMessage<ParentModel, ParentMessage, ParentOutMessage, R>
+  (
+    key: Key,
+    input: Input,
+  ): StepWithOutMessage<ParentModel, ParentMessage, ParentOutMessage, R>
+}
+
+type KeyedChildFold<
+  ParentModel,
+  ParentMessage,
+  ChildModel,
+  Key,
+  Input,
+  ChildMessage,
+  R = never,
+> = Readonly<{
+  update: (
+    childModel: ChildModel,
+    input: Input,
+  ) => Return<ChildModel, ChildMessage, R>
+  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
+  writeAt: (
+    model: ParentModel,
+    key: Key,
+    nextChildModel: ChildModel,
+  ) => ParentModel
+  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
+}>
+
+type KeyedChildFoldWithPlainOutMessage<
+  ParentModel,
+  ParentMessage,
+  ChildModel,
+  Key,
+  Input,
+  ChildMessage,
+  ChildOutMessage,
+  ChildRequirements = never,
+  OutMessageStepRequirements = ChildRequirements,
+  OutMessageStepMessage = ParentMessage,
+> = Readonly<{
+  update: (
+    childModel: ChildModel,
+    input: Input,
+  ) => ReturnWithOutMessage<
+    ChildModel,
+    ChildMessage,
+    ChildOutMessage,
+    ChildRequirements
+  >
+  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
+  writeAt: (
+    model: ParentModel,
+    key: Key,
+    nextChildModel: ChildModel,
+  ) => ParentModel
+  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
+  foldOutMessage: (
+    outMessage: ChildOutMessage,
+    context: FoldContext<ChildMessage, ParentMessage>,
+  ) => Step<
+    NoInfer<ParentModel>,
+    OutMessageStepMessage,
+    OutMessageStepRequirements
+  >
+}>
+
+type KeyedChildFoldWithOutMessage<
+  ParentModel,
+  ParentMessage,
+  ChildModel,
+  Key,
+  Input,
+  ChildMessage,
+  ChildOutMessage,
+  ChildRequirements = never,
+  OutMessageStepRequirements = ChildRequirements,
+  OutMessageStepMessage = ParentMessage,
+> = Readonly<{
+  update: (
+    childModel: ChildModel,
+    input: Input,
+  ) => ReturnWithOutMessage<
+    ChildModel,
+    ChildMessage,
+    ChildOutMessage,
+    ChildRequirements
+  >
+  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
+  writeAt: (
+    model: ParentModel,
+    key: Key,
+    nextChildModel: ChildModel,
+  ) => ParentModel
+  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
+  foldOutMessage: (
+    outMessage: ChildOutMessage,
+    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
+  ) => Step<
+    NoInfer<ParentModel>,
+    OutMessageStepMessage,
+    OutMessageStepRequirements
+  >
+}>
+
+type KeyedChildFoldWithDerivedParentOutMessage<
+  ParentModel,
+  ParentMessage,
+  ChildModel,
+  Key,
+  Input,
+  ChildMessage,
+  ChildOutMessage,
+  ParentOutMessage,
+  ChildRequirements = never,
+  OutMessageStepRequirements = ChildRequirements,
+  OutMessageStepMessage = ParentMessage,
+> = Readonly<{
+  update: (
+    childModel: ChildModel,
+    input: Input,
+  ) => ReturnWithOutMessage<
+    ChildModel,
+    ChildMessage,
+    ChildOutMessage,
+    ChildRequirements
+  >
+  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
+  writeAt: (
+    model: ParentModel,
+    key: Key,
+    nextChildModel: ChildModel,
+  ) => ParentModel
+  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
+  toParentOutMessage?: never
+  foldOutMessage: (
+    outMessage: ChildOutMessage,
+    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
+  ) => StepWithOutMessage<
+    NoInfer<ParentModel>,
+    OutMessageStepMessage,
+    ParentOutMessage,
+    OutMessageStepRequirements
+  >
+}>
+
+type KeyedChildFoldWithParentOutMessage<
+  ParentModel,
+  ParentMessage,
+  ChildModel,
+  Key,
+  Input,
+  ChildMessage,
+  ChildOutMessage,
+  ParentOutMessage,
+  ChildRequirements = never,
+  OutMessageStepRequirements = ChildRequirements,
+  OutMessageStepMessage = ParentMessage,
+  DerivedParentOutMessage = ParentOutMessage,
+> = Readonly<{
+  update: (
+    childModel: ChildModel,
+    input: Input,
+  ) => ReturnWithOutMessage<
+    ChildModel,
+    ChildMessage,
+    ChildOutMessage,
+    ChildRequirements
+  >
+  readAt: (model: ParentModel, key: Key) => Option.Option<ChildModel>
+  writeAt: (
+    model: ParentModel,
+    key: Key,
+    nextChildModel: ChildModel,
+  ) => ParentModel
+  toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
+  toParentOutMessage: (
+    outMessage: ChildOutMessage,
+  ) => ParentOutMessage | undefined
+  foldOutMessage?: (
+    outMessage: ChildOutMessage,
+    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
+  ) => StepWithOutMessage<
+    NoInfer<ParentModel>,
+    OutMessageStepMessage,
+    DerivedParentOutMessage,
+    OutMessageStepRequirements
+  >
+}>
+
+type AnyKeyedChildFold = Readonly<{
+  update: (childModel: any, input: any) => AnyUpdateReturn
+  readAt: (model: any, key: any) => Option.Option<any>
+  writeAt: (model: any, key: any, nextChildModel: any) => any
+  toParentMessage: (key: any, message: any) => any
+  toParentOutMessage?: (outMessage: any) => any | undefined
+  foldOutMessage?: (
+    outMessage: any,
+    context: FoldContext<any, any> & Readonly<{ key: any }>,
+  ) => (model: any) => AnyUpdateReturn
+}>
+
+/** Folds one child in a collection. `readAt`, `writeAt`, and
+ * `toParentMessage` take that child's key. The returned {@link FoldAt}
+ * runs data-first as `fold(model, key, input)` and data-last as
+ * `fold(key, input)` for {@link combine}.
+ *
+ * When `readAt` returns `None`, the fold returns `{ model }`. A Message
+ * for a child that has left the collection changes nothing.
+ *
+ * `foldOutMessage` receives the key on its {@link FoldContext}, as `key`,
+ * beside lifters bound to `toParentMessage` for that key. Add
+ * `toParentOutMessage` only when at least one child OutMessage should
+ * continue to the current Submodel's parent. A derived OutMessage from
+ * `foldOutMessage` replaces that lift for the dispatch.
+ *
+ * For example, each applicant entry is its own child:
+ *
+ * ```ts
+ * const foldApplicant = Update.foldChildren({
+ *   update: Applicant.update,
+ *   readAt: (model: Model, entryId: string) =>
+ *     Option.map(
+ *       Array.findFirst(
+ *         model.applicants,
+ *         applicant => applicant.id === entryId,
+ *       ),
+ *       applicant => applicant.entry,
+ *     ),
+ *   writeAt: (model, entryId, nextEntry) =>
+ *     modifyFields(model, {
+ *       applicants: Array.map(applicant =>
+ *         applicant.id === entryId
+ *           ? modifyFields(applicant, { entry: () => nextEntry })
+ *           : applicant,
+ *       ),
+ *     }),
+ *   toParentMessage: (entryId, message) =>
+ *     GotApplicantMessage({ entryId, message }),
+ * })
+ *
+ * GotApplicantMessage: ({ entryId, message }) =>
+ *   foldApplicant(model, entryId, message)
+ * ```
+ *
+ * When the set of ids changes, pass the collection through
+ * {@link reconcileChildren}. When only one child is active at a time,
+ * store that one Model and an `Option` of its key instead of a
+ * collection. */
+export const foldChildren: {
+  <
+    ParentModel,
+    ParentMessage,
+    ChildModel,
+    Input,
+    ChildMessage,
+    ChildOutMessage,
+    ParentOutMessage,
+    Key,
+    ChildRequirements = never,
+    OutMessageStepRequirements = ChildRequirements,
+    OutMessageStepMessage = ParentMessage,
+    DerivedParentOutMessage = ParentOutMessage,
+  >(
+    childFold: KeyedChildFoldWithParentOutMessage<
+      ParentModel,
+      ParentMessage,
+      ChildModel,
+      Key,
+      Input,
+      ChildMessage,
+      ChildOutMessage,
+      ParentOutMessage,
+      ChildRequirements,
+      OutMessageStepRequirements,
+      OutMessageStepMessage,
+      DerivedParentOutMessage
+    >,
+  ): FoldAtWithOutMessage<
+    ParentModel,
+    ParentMessage | OutMessageStepMessage,
+    Key,
+    Input,
+    ParentOutMessage | DerivedParentOutMessage,
+    ChildRequirements | OutMessageStepRequirements
+  >
+  <
+    ParentModel,
+    ParentMessage,
+    ChildModel,
+    Input,
+    ChildMessage,
+    ChildOutMessage,
+    Key,
+    ChildRequirements = never,
+    OutMessageStepRequirements = ChildRequirements,
+    OutMessageStepMessage = ParentMessage,
+  >(
+    childFold: KeyedChildFoldWithOutMessage<
+      ParentModel,
+      ParentMessage,
+      ChildModel,
+      Key,
+      Input,
+      ChildMessage,
+      ChildOutMessage,
+      ChildRequirements,
+      OutMessageStepRequirements,
+      OutMessageStepMessage
+    >,
+  ): FoldAt<
+    ParentModel,
+    ParentMessage | OutMessageStepMessage,
+    Key,
+    Input,
+    ChildRequirements | OutMessageStepRequirements
+  >
+  <
+    ParentModel,
+    ParentMessage,
+    ChildModel,
+    Input,
+    ChildMessage,
+    ChildOutMessage,
+    Key,
+    ChildRequirements = never,
+    OutMessageStepRequirements = ChildRequirements,
+    OutMessageStepMessage = ParentMessage,
+  >(
+    childFold: KeyedChildFoldWithPlainOutMessage<
+      ParentModel,
+      ParentMessage,
+      ChildModel,
+      Key,
+      Input,
+      ChildMessage,
+      ChildOutMessage,
+      ChildRequirements,
+      OutMessageStepRequirements,
+      OutMessageStepMessage
+    >,
+  ): FoldAt<
+    ParentModel,
+    ParentMessage | OutMessageStepMessage,
+    Key,
+    Input,
+    ChildRequirements | OutMessageStepRequirements
+  >
+  <
+    ParentModel,
+    ParentMessage,
+    ChildModel,
+    Input,
+    ChildMessage,
+    ChildOutMessage,
+    ParentOutMessage,
+    Key,
+    ChildRequirements = never,
+    OutMessageStepRequirements = ChildRequirements,
+    OutMessageStepMessage = ParentMessage,
+  >(
+    childFold: KeyedChildFoldWithDerivedParentOutMessage<
+      ParentModel,
+      ParentMessage,
+      ChildModel,
+      Key,
+      Input,
+      ChildMessage,
+      ChildOutMessage,
+      ParentOutMessage,
+      ChildRequirements,
+      OutMessageStepRequirements,
+      OutMessageStepMessage
+    >,
+  ): FoldAtWithOutMessage<
+    ParentModel,
+    ParentMessage | OutMessageStepMessage,
+    Key,
+    Input,
+    ParentOutMessage,
+    ChildRequirements | OutMessageStepRequirements
+  >
+  <ParentModel, ParentMessage, ChildModel, Input, ChildMessage, Key, R = never>(
+    childFold: KeyedChildFold<
+      ParentModel,
+      ParentMessage,
+      ChildModel,
+      Key,
+      Input,
+      ChildMessage,
+      R
+    >,
+  ): FoldAt<ParentModel, ParentMessage, Key, Input, R>
+} = (keyedFold: AnyKeyedChildFold): any =>
+  Function.dual(3, (model: any, key: any, input: any) => {
+    const toParentMessage = (message: any) =>
+      keyedFold.toParentMessage(key, message)
+    const foldOutMessage = keyedFold.foldOutMessage
+    const childFold: AnyChildFold = {
+      update: keyedFold.update,
+      read: parentModel => keyedFold.readAt(parentModel, key),
+      write: (parentModel, nextChildModel) =>
+        keyedFold.writeAt(parentModel, key, nextChildModel),
+      toParentMessage,
+      ...(keyedFold.toParentOutMessage === undefined
+        ? {}
+        : { toParentOutMessage: keyedFold.toParentOutMessage }),
+      ...(foldOutMessage === undefined
+        ? {}
+        : {
+            foldOutMessage: (outMessage: any, context: FoldContext<any, any>) =>
+              foldOutMessage(outMessage, { ...context, key }),
+          }),
+    }
+
+    return runChildFold(
+      childFold,
+      makeFoldContext(toParentMessage),
+      model,
+      input,
+    )
+  })
+
+/** Rebuilds a collection of child Models from the ids that should exist
+ * now. An id that is already present keeps that child. An id that arrived
+ * is created with `init`. An id that left is dropped. The result follows
+ * `ids`, and a repeated id appears once, at its first occurrence.
+ *
+ * `entryId` reads the id stored on each child. Ids are compared with
+ * Equal. */
+export const reconcileChildren = <Entry, Id>(
+  entries: ReadonlyArray<Entry>,
+  ids: Iterable<Id>,
+  entryId: (entry: Entry) => Id,
+  init: (id: Id) => Entry,
+): Array<Entry> => {
+  const currentById = HashMap.fromIterable(
+    Array.map(entries, (entry): readonly [Id, Entry] => [
+      entryId(entry),
+      entry,
+    ]),
+  )
+
+  return pipe(
+    Array.fromIterable(ids),
+    Array.reduce(
+      {
+        seen: HashSet.empty<Id>(),
+        nextEntries: Array.empty<Entry>(),
+      },
+      (state, id) => {
+        if (HashSet.has(state.seen, id)) {
+          return state
+        }
+
+        const entry = Option.getOrElse(HashMap.get(currentById, id), () =>
+          init(id),
+        )
+
+        return {
+          seen: HashSet.add(state.seen, id),
+          nextEntries: Array.append(state.nextEntries, entry),
+        }
+      },
+    ),
+    state => state.nextEntries,
   )
 }
 

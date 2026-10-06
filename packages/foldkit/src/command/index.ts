@@ -486,8 +486,9 @@ export const mapMessage: {
 /** Lifts every Command in a list through `f`, transforming the result
  *  Message type from `FromMessage` to `ToMessage`. When `commands` is
  *  `undefined`, it returns an empty array. `Update.foldChild`,
- *  `Update.foldChildStep`, `Update.foldChildInit`, and `Update.foldChildInits`
- *  handle this mapping for application Submodels. Use `mapMessages` for a
+ *  `Update.foldChildStep`, `Update.foldChildInit`, `Update.foldChildInits`,
+ *  and `Update.foldChildren` handle this mapping for application Submodels.
+ *  Use `mapMessages` for a
  *  standalone batch of Commands or when route-gated initialization includes
  *  only the active child's Commands:
  *

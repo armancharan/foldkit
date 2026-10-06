@@ -4,6 +4,8 @@ export {
   foldChildInit,
   foldChildInits,
   foldChildStep,
+  foldChildren,
+  reconcileChildren,
   refresh,
   withOutMessage,
 } from './index.js'
@@ -25,5 +27,8 @@ export type {
   ChildStepFoldWithParentOutMessage,
   FoldContext,
   Fold,
+  FoldAt,
+  FoldAtContext,
+  FoldAtWithOutMessage,
   FoldWithOutMessage,
 } from './index.js'

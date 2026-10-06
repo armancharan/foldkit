@@ -1,6 +1,6 @@
 import { Array, Effect, HashMap, Match, Number, Option } from 'effect'
 import type { KeyValueStore } from 'effect/persistence/KeyValueStore'
-import { expect, expectTypeOf } from 'vitest'
+import { expect, expectTypeOf, vi } from 'vitest'
 
 import { describe, it } from '@effect/vitest'
 
@@ -12,6 +12,8 @@ import * as Story from '../test/story.js'
 import {
   type Commands,
   type Fold,
+  type FoldAt,
+  type FoldAtContext,
   type FoldContext,
   type FoldWithOutMessage,
   type Return,
@@ -21,6 +23,8 @@ import {
   combine,
   foldChild,
   foldChildStep,
+  foldChildren,
+  reconcileChildren,
   refresh,
   withOutMessage,
 } from './update.js'
@@ -941,6 +945,182 @@ const resetCounterWithOutMessage = (
   model: modifyFields(model, { value: () => 0 }),
   commands: [saveCount],
   outMessage: CounterOutMessage.ChangedValue(),
+})
+
+type Row = Readonly<{ id: string; counter: CounterModel }>
+
+type RowsModel = Readonly<{ rows: ReadonlyArray<Row> }>
+
+type GotRowMessage = Readonly<{ id: string; message: CounterMessage }>
+
+const rowsModel: RowsModel = {
+  rows: [
+    { id: 'a', counter: { value: 1 } },
+    { id: 'b', counter: { value: 5 } },
+  ],
+}
+
+const foldRow = foldChildren({
+  update: counterUpdate,
+  readAt: (model: RowsModel, id: string) =>
+    Option.map(
+      Array.findFirst(model.rows, row => row.id === id),
+      row => row.counter,
+    ),
+  writeAt: (model, id, nextCounter) =>
+    modifyFields(model, {
+      rows: Array.map(row =>
+        row.id === id ? modifyFields(row, { counter: () => nextCounter }) : row,
+      ),
+    }),
+  toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+})
+
+const foldRowIgnoringOutMessage = foldChildren({
+  update: counterUpdateWithOutMessage,
+  readAt: (model: RowsModel, id: string) =>
+    Option.map(
+      Array.findFirst(model.rows, row => row.id === id),
+      row => row.counter,
+    ),
+  writeAt: (model, id, nextCounter) =>
+    modifyFields(model, {
+      rows: Array.map(row =>
+        row.id === id ? modifyFields(row, { counter: () => nextCounter }) : row,
+      ),
+    }),
+  toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+  foldOutMessage: (): Step<RowsModel, GotRowMessage> => model => ({ model }),
+})
+
+describe('foldChildren', () => {
+  it('writes only the addressed child', () => {
+    expectTypeOf(foldRow).toEqualTypeOf<
+      FoldAt<RowsModel, GotRowMessage, string, CounterMessage>
+    >()
+
+    const rowFold = foldRow(rowsModel, 'b', Message.BumpedValue())
+    expect(rowFold.model.rows).toEqual([
+      { id: 'a', counter: { value: 1 } },
+      { id: 'b', counter: { value: 6 } },
+    ])
+
+    const maybeOriginal = Array.head(rowsModel.rows)
+    const maybeFolded = Array.head(rowFold.model.rows)
+    expect(Option.isSome(maybeOriginal)).toBe(true)
+    expect(Option.isSome(maybeFolded)).toBe(true)
+    if (Option.isSome(maybeOriginal) && Option.isSome(maybeFolded)) {
+      expect(maybeFolded.value).toBe(maybeOriginal.value)
+    }
+  })
+
+  it('lifts the child Command with the key', () => {
+    const rowFold = foldRow(rowsModel, 'a', Message.BumpedValue())
+    const maybeCommand = Array.head(rowFold.commands ?? [])
+
+    expect(Option.isSome(maybeCommand)).toBe(true)
+    if (Option.isSome(maybeCommand)) {
+      expect(Effect.runSync(maybeCommand.value.effect)).toEqual({
+        id: 'a',
+        message: Message.CompletedSaveCount(),
+      })
+    }
+  })
+
+  it('is a no-op when the key is absent', () => {
+    const rowFold = foldRow(rowsModel, 'missing', Message.BumpedValue())
+    expect(rowFold.model).toBe(rowsModel)
+    expect(rowFold.commands ?? []).toEqual([])
+  })
+
+  it('gives foldOutMessage the key after the child is written', () => {
+    const recordId = vi.fn<(id: string) => void>()
+    const foldRowOutMessage = foldChildren({
+      update: counterUpdateWithOutMessage,
+      readAt: (model: RowsModel, id: string) =>
+        Option.map(
+          Array.findFirst(model.rows, row => row.id === id),
+          row => row.counter,
+        ),
+      writeAt: (model, id, nextCounter) =>
+        modifyFields(model, {
+          rows: Array.map(row =>
+            row.id === id
+              ? modifyFields(row, { counter: () => nextCounter })
+              : row,
+          ),
+        }),
+      toParentMessage: (id, message): GotRowMessage => ({ id, message }),
+      foldOutMessage:
+        (
+          _outMessage: ChangedValue,
+          { key }: FoldAtContext<CounterMessage, GotRowMessage, string>,
+        ): Step<RowsModel, GotRowMessage> =>
+        model => {
+          recordId(key)
+          return { model }
+        },
+    })
+
+    const rowFold = foldRowOutMessage(rowsModel, 'b', Message.BumpedValue())
+    expect(recordId).toHaveBeenCalledExactlyOnceWith('b')
+    expect(rowFold.model.rows).toEqual([
+      { id: 'a', counter: { value: 1 } },
+      { id: 'b', counter: { value: 6 } },
+    ])
+  })
+
+  it('accepts a foldOutMessage that ignores the key', () => {
+    const rowFold = foldRowIgnoringOutMessage(
+      rowsModel,
+      'a',
+      Message.BumpedValue(),
+    )
+    expect(rowFold.model.rows).toEqual([
+      { id: 'a', counter: { value: 2 } },
+      { id: 'b', counter: { value: 5 } },
+    ])
+  })
+
+  it('composes data-last with combine', () => {
+    const combined = combine([
+      foldRow('a', Message.BumpedValue()),
+      foldRow('b', Message.BumpedValue()),
+    ])(rowsModel)
+
+    expect(combined.model.rows).toEqual([
+      { id: 'a', counter: { value: 2 } },
+      { id: 'b', counter: { value: 6 } },
+    ])
+  })
+})
+
+describe('reconcileChildren', () => {
+  const kept = { id: 'a', counter: { value: 4 } }
+  const alsoKept = { id: 'b', counter: { value: 9 } }
+
+  it('keeps a surviving child, inits an arrival, and drops a departure', () => {
+    const nextRows = reconcileChildren(
+      [kept, alsoKept],
+      ['b', 'c'],
+      row => row.id,
+      id => ({ id, counter: { value: 0 } }),
+    )
+
+    expect(nextRows).toEqual([alsoKept, { id: 'c', counter: { value: 0 } }])
+    expect(Array.head(nextRows)).toEqual(Option.some(alsoKept))
+  })
+
+  it('keeps the first occurrence of a repeated id', () => {
+    const nextRows = reconcileChildren(
+      [kept],
+      ['a', 'a'],
+      row => row.id,
+      id => ({ id, counter: { value: 0 } }),
+    )
+
+    expect(nextRows).toEqual([kept])
+  })
 })
 
 describe('foldChildStep', () => {
