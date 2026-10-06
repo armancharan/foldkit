@@ -3,7 +3,7 @@ import {
   type Effect,
   Function,
   HashMap,
-  MutableHashSet,
+  HashSet,
   Option,
   pipe,
 } from 'effect'
@@ -1079,15 +1079,15 @@ export const reconcileChildren = <Entry, Id>(
       entry,
     ]),
   )
-  const seen = MutableHashSet.empty<Id>()
+  let seen = HashSet.empty<Id>()
   const nextEntries: Array<Entry> = []
 
   for (const id of ids) {
-    if (MutableHashSet.has(seen, id)) {
+    if (HashSet.has(seen, id)) {
       continue
     }
 
-    MutableHashSet.add(seen, id)
+    seen = HashSet.add(seen, id)
     nextEntries.push(
       Option.getOrElse(HashMap.get(currentById, id), () => init(id)),
     )
