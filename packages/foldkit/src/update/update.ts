@@ -1,12 +1,4 @@
-import {
-  Array,
-  type Effect,
-  Function,
-  HashMap,
-  HashSet,
-  Option,
-  pipe,
-} from 'effect'
+import { Array, type Effect, Function, Option, pipe } from 'effect'
 
 import { type AsyncData } from '../asyncData/index.js'
 import { type Command, mapMessage, mapMessages } from '../command/index.js'
@@ -917,10 +909,8 @@ type AnyKeyedChildFold = Readonly<{
  *   foldApplicant(model, entryId, message)
  * ```
  *
- * When the set of keys changes, pass the collection through
- * {@link reconcileChildren}. When only one child is active at a time,
- * store that one Model and an `Option` of its key instead of a
- * collection. */
+ * When only one child is active at a time, store that one Model and an
+ * `Option` of its key instead of a collection. */
 export const foldChildAt: {
   <
     ParentModel,
@@ -1067,44 +1057,6 @@ export const foldChildAt: {
       input,
     )
   })
-
-/** Reconciles an array of child entries with the requested keys. It reuses
- * an existing entry when its key remains, calls `makeEntry` once for each new
- * key, and omits entries whose keys are absent. The result follows `keys`;
- * repeated requested keys appear once at their first position. Existing
- * entries must have unique keys.
- *
- * `getEntryKey` reads the key from each entry. Keys use Effect's Equal
- * semantics. `makeEntry` returns an entry directly. Fold a child init or boot
- * result separately when it includes Commands or an OutMessage. */
-export const reconcileChildren = <Entry, Key>(
-  entries: ReadonlyArray<Entry>,
-  keys: Iterable<Key>,
-  getEntryKey: (entry: Entry) => Key,
-  makeEntry: (key: Key) => Entry,
-): Array<Entry> => {
-  const currentByKey = HashMap.fromIterable(
-    Array.map(entries, (entry): readonly [Key, Entry] => [
-      getEntryKey(entry),
-      entry,
-    ]),
-  )
-  let seen = HashSet.empty<Key>()
-  const nextEntries: Array<Entry> = []
-
-  for (const key of keys) {
-    if (HashSet.has(seen, key)) {
-      continue
-    }
-
-    seen = HashSet.add(seen, key)
-    nextEntries.push(
-      Option.getOrElse(HashMap.get(currentByKey, key), () => makeEntry(key)),
-    )
-  }
-
-  return nextEntries
-}
 
 const makeFoldContext = (
   toParentMessage: (message: any) => any,

@@ -162,11 +162,11 @@ When a keyed child emits an OutMessage, `foldOutMessage` takes the key and retur
 
 ### Reconciling Child Entries {#reconcile-children}
 
-Use `Update.reconcileChildren` when the set of child keys changes. It returns entries in the requested key order: existing entries are reused, `makeEntry` creates one entry for each new key, and entries whose keys are absent are omitted. Repeated requested keys appear once at their first position. Existing entries must have unique keys.
+When the set of child keys changes, update the collection in the parent. The example's `UpdatedApplicantIds` branch keeps the first occurrence of each requested id, reuses an existing entry when it finds one, and calls `makeApplicant` for a new id. The resulting array follows the requested order and omits entries whose ids are absent.
 
-`makeEntry` returns an entry directly. Fold a child's `init` or `boot` result separately when it includes Commands or an OutMessage.
+`makeApplicant` constructs an entry directly. If a child's `init` or `boot` returns Commands or an OutMessage, fold that result separately.
 
-If profiling shows that finding and replacing a child in an array is expensive, store children in a `HashMap`. `foldChildAt` still works because `readAt` can call `HashMap.get` and `writeAt` can call `HashMap.set`. `reconcileChildren` accepts and returns arrays; reconcile a map with `HashMap` operations.
+If profiling shows that finding and replacing a child in an array is expensive, store children in a `HashMap`. `foldChildAt` still works because `readAt` can call `HashMap.get` and `writeAt` can call `HashMap.set`. Update the map with `HashMap` operations when its set of keys changes.
 
 ## Memoization Across Submodel Boundaries {#memoization}
 

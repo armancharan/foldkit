@@ -1,4 +1,4 @@
-import { Array, Option } from 'effect'
+import { Array, Option, pipe } from 'effect'
 import { Update } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
@@ -56,11 +56,18 @@ export const update = (model: Model, message: Message) =>
     GotApplicantMessage: ({ entryId, message }) =>
       foldApplicant(model, entryId, message),
     UpdatedApplicantIds: ({ applicantIds }) => {
-      const nextApplicants = Update.reconcileChildren(
-        model.applicants,
+      const nextApplicants = pipe(
         applicantIds,
-        applicant => applicant.id,
-        makeApplicant,
+        Array.dedupe,
+        Array.map(applicantId =>
+          Option.getOrElse(
+            Array.findFirst(
+              model.applicants,
+              applicant => applicant.id === applicantId,
+            ),
+            () => makeApplicant(applicantId),
+          ),
+        ),
       )
 
       return {

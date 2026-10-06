@@ -24,7 +24,6 @@ import {
   foldChild,
   foldChildAt,
   foldChildStep,
-  reconcileChildren,
   refresh,
   withOutMessage,
 } from './update.js'
@@ -1262,54 +1261,6 @@ describe('foldChildAt', () => {
       { id: 'a', counter: { value: 2 } },
       { id: 'b', counter: { value: 6 } },
     ])
-  })
-})
-
-describe('reconcileChildren', () => {
-  const kept = { id: 'a', counter: { value: 4 } }
-  const alsoKept = { id: 'b', counter: { value: 9 } }
-
-  it('keeps a surviving child, creates an arrival, and drops a departure', () => {
-    const nextRows = reconcileChildren(
-      [kept, alsoKept],
-      ['b', 'c'],
-      row => row.id,
-      id => ({ id, counter: { value: 0 } }),
-    )
-
-    expect(nextRows).toEqual([alsoKept, { id: 'c', counter: { value: 0 } }])
-    const maybeFirst = Array.head(nextRows)
-    expect(Option.isSome(maybeFirst)).toBe(true)
-    if (Option.isSome(maybeFirst)) {
-      expect(maybeFirst.value).toBe(alsoKept)
-    }
-  })
-
-  it('keeps the first occurrence of a repeated key', () => {
-    const nextRows = reconcileChildren(
-      [kept],
-      ['a', 'a'],
-      row => row.id,
-      id => ({ id, counter: { value: 0 } }),
-    )
-
-    expect(nextRows).toEqual([kept])
-  })
-
-  it('creates a new child only once for a repeated key', () => {
-    const makeEntry = vi.fn((id: string) => ({
-      id,
-      counter: { value: 0 },
-    }))
-    const nextRows = reconcileChildren(
-      Array.empty<Row>(),
-      ['c', 'c'],
-      row => row.id,
-      makeEntry,
-    )
-
-    expect(nextRows).toEqual([{ id: 'c', counter: { value: 0 } }])
-    expect(makeEntry).toHaveBeenCalledExactlyOnceWith('c')
   })
 })
 
