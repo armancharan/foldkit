@@ -152,11 +152,15 @@ For a fixed set, give each child its own Model field and `slotId`. For a dynamic
 
 ::Snippet{name="submodelMultipleInstances" label="Multiple instances" class="mb-4"}
 
-`Update.foldChildren` reads and writes the child for one key. Call it with the parent Model, the key, and the child input. When that key is no longer in the collection, `readAt` returns `None` and a late Message changes nothing. `toParentOutMessage` receives that same key, so a forwarded OutMessage can name the child. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
+`Update.foldChildAt` reads and writes the child for one key. Call it with the parent Model, the key, and the child input. When that key is no longer in the collection, `readAt` returns `None` and a late Message changes nothing. The [job-application example](/example-apps/job-application) folds each education, work-history, and skills entry this way.
 
-When the set of ids changes, `Update.reconcileChildren` rebuilds the array. It keeps the child for an id that remains, inits an id that arrived, and drops an id that left. The result follows the new id order. A repeated id appears once. `init` returns a Model. An arrival whose init returns Commands is a separate `Update.foldChildInit` for that child.
+When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher for that OutMessage. It can also take a second `FoldContext` argument when the resulting Step returns a child Command. To forward the OutMessage, `toParentOutMessage` takes the key and returns its matcher. These matchers are created only when the child emits an OutMessage.
 
-Start with an array. If profiling shows that finding and replacing a child is expensive, store the children in a `HashMap` keyed by the same identifier. `readAt` can return `HashMap.get`. Reconciling that map is `HashMap.get`, `HashMap.set`, and `HashMap.remove` for the ids that arrived or left.
+`Update.reconcileChildren` is a pure array helper for a changing set of child Models. It keeps the entry for a key that remains, calls `makeEntry` for a key that arrived, and drops a key that left. `makeEntry` receives the arriving key and returns its entry. The result follows the new key order. A repeated key appears once.
+
+Fold a child's `init` or `boot` result separately when it returns Commands or an OutMessage. `reconcileChildren` returns entries only.
+
+Start with an array. `reconcileChildren` accepts and returns arrays. If profiling shows that finding and replacing a child is expensive, store children in a `HashMap` keyed by their existing keys. `foldChildAt` works with a `HashMap` because `readAt` can return `HashMap.get`.
 
 When only one child is active at a time, store one child Model and an `Option` of the open key. A row menu that closes before another opens is that shape. A collection is for children that are live together, such as an editor on every row or upload progress for every file.
 

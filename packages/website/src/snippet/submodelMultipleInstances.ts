@@ -4,7 +4,7 @@ import type { Html, HtmlBuilder } from 'foldkit/html'
 import { modifyFields } from 'foldkit/struct'
 
 import { Applicant } from './applicant'
-import { GotApplicantMessage, type Message } from './message'
+import { Message } from './message'
 import type { Model } from './model'
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
@@ -20,14 +20,14 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
             model: applicant.entry,
             view: Applicant.view,
             toParentMessage: message =>
-              GotApplicantMessage({ entryId: applicant.id, message }),
+              Message.GotApplicantMessage({ entryId: applicant.id, message }),
           }),
         ],
       ),
     ),
   )
 
-const foldApplicant = Update.foldChildren({
+const foldApplicant = Update.foldChildAt({
   update: Applicant.update,
   readAt: (model: Model, entryId: string) =>
     Option.map(
@@ -43,30 +43,30 @@ const foldApplicant = Update.foldChildren({
       ),
     }),
   toParentMessage: (entryId, message) =>
-    GotApplicantMessage({ entryId, message }),
+    Message.GotApplicantMessage({ entryId, message }),
 })
 
-const update = (model: Model) => ({
-  GotApplicantMessage: ({
-    entryId,
-    message,
-  }: {
-    entryId: string
-    message: Applicant.Message
-  }) => foldApplicant(model, entryId, message),
-  LoadedApplicants: ({
-    applicantIds,
-  }: {
-    applicantIds: ReadonlyArray<string>
-  }) => ({
-    model: modifyFields(model, {
-      applicants: () =>
-        Update.reconcileChildren(
-          model.applicants,
-          applicantIds,
-          applicant => applicant.id,
-          id => ({ id, entry: Applicant.init() }),
-        ),
-    }),
-  }),
+const makeApplicant = (applicantId: string) => ({
+  id: applicantId,
+  entry: Applicant.init(),
 })
+
+export const update = (model: Model, message: Message) =>
+  Message.match<Update.Return<Model, Message>>(message, {
+    GotApplicantMessage: ({ entryId, message }) =>
+      foldApplicant(model, entryId, message),
+    UpdatedApplicantIds: ({ applicantIds }) => {
+      const nextApplicants = Update.reconcileChildren(
+        model.applicants,
+        applicantIds,
+        applicant => applicant.id,
+        makeApplicant,
+      )
+
+      return {
+        model: modifyFields(model, {
+          applicants: () => nextApplicants,
+        }),
+      }
+    },
+  })

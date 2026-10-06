@@ -675,14 +675,6 @@ export type FoldAt<ParentModel, ParentMessage, Key, Input, R = never> = {
   (key: Key, input: Input): Step<ParentModel, ParentMessage, R>
 }
 
-/** {@link FoldContext} for {@link foldChildren}. `key` is the child the
- * fold is addressing. The lifters use `toParentMessage` for that key. */
-export type FoldAtContext<ChildMessage, ParentMessage, Key> = FoldContext<
-  ChildMessage,
-  ParentMessage
-> &
-  Readonly<{ key: Key }>
-
 /** {@link FoldAt} whose result can carry the parent OutMessage. */
 export type FoldAtWithOutMessage<
   ParentModel,
@@ -703,7 +695,10 @@ export type FoldAtWithOutMessage<
   ): StepWithOutMessage<ParentModel, ParentMessage, ParentOutMessage, R>
 }
 
-type KeyedChildFold<
+/** Configuration for {@link foldChildAt} when the child emits no
+ * OutMessage. The key selects the child Model and identifies its wrapper
+ * Message. */
+export type ChildFoldAt<
   ParentModel,
   ParentMessage,
   ChildModel,
@@ -725,7 +720,10 @@ type KeyedChildFold<
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
 }>
 
-type KeyedChildFoldWithOutMessage<
+/** {@link ChildFoldAt} for a child that emits OutMessages handled locally.
+ * `foldOutMessage` takes the key and command lifters, then returns a
+ * matcher for the child's OutMessage. */
+export type ChildFoldAtWithOutMessage<
   ParentModel,
   ParentMessage,
   ChildModel,
@@ -754,8 +752,10 @@ type KeyedChildFoldWithOutMessage<
   ) => ParentModel
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
   foldOutMessage: (
+    key: Key,
+    context: FoldContext<ChildMessage, ParentMessage>,
+  ) => (
     outMessage: ChildOutMessage,
-    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
   ) => Step<
     NoInfer<ParentModel>,
     OutMessageStepMessage,
@@ -763,7 +763,9 @@ type KeyedChildFoldWithOutMessage<
   >
 }>
 
-type KeyedChildFoldWithDerivedParentOutMessage<
+/** {@link ChildFoldAtWithOutMessage} for a parent that derives its own
+ * OutMessage while handling the child's OutMessage. */
+export type ChildFoldAtWithDerivedParentOutMessage<
   ParentModel,
   ParentMessage,
   ChildModel,
@@ -794,8 +796,10 @@ type KeyedChildFoldWithDerivedParentOutMessage<
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
   toParentOutMessage?: never
   foldOutMessage: (
+    key: Key,
+    context: FoldContext<ChildMessage, ParentMessage>,
+  ) => (
     outMessage: ChildOutMessage,
-    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
   ) => StepWithOutMessage<
     NoInfer<ParentModel>,
     OutMessageStepMessage,
@@ -804,7 +808,11 @@ type KeyedChildFoldWithDerivedParentOutMessage<
   >
 }>
 
-type KeyedChildFoldWithParentOutMessage<
+/** {@link ChildFoldAtWithOutMessage} for a parent that forwards child
+ * OutMessages upward. `toParentOutMessage` takes the key and returns an
+ * OutMessage mapper. A derived OutMessage from `foldOutMessage`, when
+ * provided, replaces the forwarded one for that dispatch. */
+export type ChildFoldAtWithParentOutMessage<
   ParentModel,
   ParentMessage,
   ChildModel,
@@ -836,11 +844,12 @@ type KeyedChildFoldWithParentOutMessage<
   toParentMessage: (key: Key, message: ChildMessage) => ParentMessage
   toParentOutMessage: (
     key: Key,
-    outMessage: ChildOutMessage,
-  ) => ParentOutMessage | undefined
+  ) => (outMessage: ChildOutMessage) => ParentOutMessage | undefined
   foldOutMessage?: (
+    key: Key,
+    context: FoldContext<ChildMessage, ParentMessage>,
+  ) => (
     outMessage: ChildOutMessage,
-    context: FoldAtContext<ChildMessage, ParentMessage, Key>,
   ) => StepWithOutMessage<
     NoInfer<ParentModel>,
     OutMessageStepMessage,
@@ -854,11 +863,11 @@ type AnyKeyedChildFold = Readonly<{
   readAt: (model: any, key: any) => Option.Option<any>
   writeAt: (model: any, key: any, nextChildModel: any) => any
   toParentMessage: (key: any, message: any) => any
-  toParentOutMessage?: (key: any, outMessage: any) => any | undefined
+  toParentOutMessage?: (key: any) => (outMessage: any) => any | undefined
   foldOutMessage?: (
-    outMessage: any,
-    context: FoldContext<any, any> & Readonly<{ key: any }>,
-  ) => (model: any) => AnyUpdateReturn
+    key: any,
+    context: FoldContext<any, any>,
+  ) => (outMessage: any) => (model: any) => AnyUpdateReturn
 }>
 
 /** Folds one child in a collection. `readAt`, `writeAt`, and
@@ -869,17 +878,19 @@ type AnyKeyedChildFold = Readonly<{
  * When `readAt` returns `None`, the fold returns `{ model }`. A Message
  * for a child that has left the collection changes nothing.
  *
- * `foldOutMessage` receives the key on its {@link FoldAtContext}, beside
- * lifters bound to `toParentMessage` for that key. `toParentOutMessage`
- * takes the same key and the child OutMessage. Add it only when at least
- * one child OutMessage should continue to the current Submodel's parent.
- * Return `undefined` for a named variant that stops here. A derived
- * OutMessage from `foldOutMessage` replaces that lift for the dispatch.
+ * `foldOutMessage` takes the key and a {@link FoldContext} of lifters bound
+ * to `toParentMessage`, then returns a child OutMessage matcher. Callbacks
+ * that do not need the lifters can omit the context parameter. Add
+ * `toParentOutMessage` when at least one child OutMessage should continue
+ * to the current Submodel's parent; it takes the key and returns an
+ * OutMessage mapper. These factories run only when the child emits an
+ * OutMessage. A derived OutMessage from `foldOutMessage` replaces the
+ * one-to-one lift for that dispatch.
  *
  * For example, each applicant entry is its own child:
  *
  * ```ts
- * const foldApplicant = Update.foldChildren({
+ * const foldApplicant = Update.foldChildAt({
  *   update: Applicant.update,
  *   readAt: (model: Model, entryId: string) =>
  *     Option.map(
@@ -898,18 +909,18 @@ type AnyKeyedChildFold = Readonly<{
  *       ),
  *     }),
  *   toParentMessage: (entryId, message) =>
- *     GotApplicantMessage({ entryId, message }),
+ *     Message.GotApplicantMessage({ entryId, message }),
  * })
  *
  * GotApplicantMessage: ({ entryId, message }) =>
  *   foldApplicant(model, entryId, message)
  * ```
  *
- * When the set of ids changes, pass the collection through
+ * When the set of keys changes, pass the collection through
  * {@link reconcileChildren}. When only one child is active at a time,
  * store that one Model and an `Option` of its key instead of a
  * collection. */
-export const foldChildren: {
+export const foldChildAt: {
   <
     ParentModel,
     ParentMessage,
@@ -924,7 +935,7 @@ export const foldChildren: {
     OutMessageStepMessage = ParentMessage,
     DerivedParentOutMessage = ParentOutMessage,
   >(
-    childFold: KeyedChildFoldWithParentOutMessage<
+    childFold: ChildFoldAtWithParentOutMessage<
       ParentModel,
       ParentMessage,
       ChildModel,
@@ -958,7 +969,7 @@ export const foldChildren: {
     OutMessageStepRequirements = ChildRequirements,
     OutMessageStepMessage = ParentMessage,
   >(
-    childFold: KeyedChildFoldWithOutMessage<
+    childFold: ChildFoldAtWithOutMessage<
       ParentModel,
       ParentMessage,
       ChildModel,
@@ -990,7 +1001,7 @@ export const foldChildren: {
     OutMessageStepRequirements = ChildRequirements,
     OutMessageStepMessage = ParentMessage,
   >(
-    childFold: KeyedChildFoldWithDerivedParentOutMessage<
+    childFold: ChildFoldAtWithDerivedParentOutMessage<
       ParentModel,
       ParentMessage,
       ChildModel,
@@ -1012,7 +1023,7 @@ export const foldChildren: {
     ChildRequirements | OutMessageStepRequirements
   >
   <ParentModel, ParentMessage, ChildModel, Input, ChildMessage, Key, R = never>(
-    childFold: KeyedChildFold<
+    childFold: ChildFoldAt<
       ParentModel,
       ParentMessage,
       ChildModel,
@@ -1026,8 +1037,8 @@ export const foldChildren: {
   Function.dual(3, (model: any, key: any, input: any) => {
     const toParentMessage = (message: any) =>
       keyedFold.toParentMessage(key, message)
-    const foldOutMessage = keyedFold.foldOutMessage
     const toParentOutMessage = keyedFold.toParentOutMessage
+    const foldOutMessage = keyedFold.foldOutMessage
     const childFold: AnyChildFold = {
       update: keyedFold.update,
       read: parentModel => keyedFold.readAt(parentModel, key),
@@ -1038,13 +1049,13 @@ export const foldChildren: {
         ? {}
         : {
             toParentOutMessage: (outMessage: any) =>
-              toParentOutMessage(key, outMessage),
+              toParentOutMessage(key)(outMessage),
           }),
       ...(foldOutMessage === undefined
         ? {}
         : {
             foldOutMessage: (outMessage: any, context: FoldContext<any, any>) =>
-              foldOutMessage(outMessage, { ...context, key }),
+              foldOutMessage(key, context)(outMessage),
           }),
     }
 
@@ -1056,40 +1067,38 @@ export const foldChildren: {
     )
   })
 
-/** Rebuilds an array of child Models from the ids that should exist now.
- * An id that is already present keeps that child. An id that arrived is
- * created with `init`. An id that left is dropped. The result follows
- * `ids`, and a repeated id appears once, at its first occurrence.
+/** Reconciles an array of entries containing child Models with the keys
+ * that should exist now. A key that is already present keeps its entry.
+ * A key that arrived gets a new entry from `makeEntry`. A key that left is
+ * dropped. The result follows `keys`, and a repeated key appears once, at
+ * its first occurrence.
  *
- * `init` returns a Model. An arrival whose init returns Commands is a
- * separate {@link foldChildInit} for that child. A `HashMap` stays on
- * `HashMap.get`, `HashMap.set`, and `HashMap.remove`.
- *
- * `entryId` reads the id stored on each child. Ids are compared with
- * Equal. */
-export const reconcileChildren = <Entry, Id>(
+ * `getEntryKey` reads the key stored on each entry. Keys are compared with
+ * Equal. `makeEntry` returns only an entry; fold child init or boot
+ * results separately when they contain Commands or OutMessages. */
+export const reconcileChildren = <Entry, Key>(
   entries: ReadonlyArray<Entry>,
-  ids: Iterable<Id>,
-  entryId: (entry: Entry) => Id,
-  init: (id: Id) => Entry,
+  keys: Iterable<Key>,
+  getEntryKey: (entry: Entry) => Key,
+  makeEntry: (key: Key) => Entry,
 ): Array<Entry> => {
-  const currentById = HashMap.fromIterable(
-    Array.map(entries, (entry): readonly [Id, Entry] => [
-      entryId(entry),
+  const currentByKey = HashMap.fromIterable(
+    Array.map(entries, (entry): readonly [Key, Entry] => [
+      getEntryKey(entry),
       entry,
     ]),
   )
-  let seen = HashSet.empty<Id>()
+  let seen = HashSet.empty<Key>()
   const nextEntries: Array<Entry> = []
 
-  for (const id of ids) {
-    if (HashSet.has(seen, id)) {
+  for (const key of keys) {
+    if (HashSet.has(seen, key)) {
       continue
     }
 
-    seen = HashSet.add(seen, id)
+    seen = HashSet.add(seen, key)
     nextEntries.push(
-      Option.getOrElse(HashMap.get(currentById, id), () => init(id)),
+      Option.getOrElse(HashMap.get(currentByKey, key), () => makeEntry(key)),
     )
   }
 

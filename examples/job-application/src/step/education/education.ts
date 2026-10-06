@@ -54,11 +54,8 @@ export const GenerateEntryId = Command.define('GenerateEntryId', {
 
 // UPDATE
 
-const foldEntryOutMessage = (
-  outMessage: Entry.OutMessage,
-  { key: entryId }: Update.FoldAtContext<Entry.Message, Message, string>,
-) =>
-  Entry.OutMessage.match<Update.Step<Model, Message>>(outMessage, {
+const foldEntryOutMessage = (entryId: string) =>
+  Entry.OutMessage.match<Update.Step<Model, Message>>({
     Removed: () => model => ({
       model: modifyFields(model, {
         entries: Array.filter(entry => entry.id !== entryId),
@@ -66,7 +63,7 @@ const foldEntryOutMessage = (
     }),
   })
 
-const foldEntry = Update.foldChildren({
+const foldEntry = Update.foldChildAt({
   update: Entry.update,
   readAt: (model: Model, entryId: string) =>
     Array.findFirst(model.entries, entry => entry.id === entryId),
