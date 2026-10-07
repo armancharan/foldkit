@@ -156,9 +156,9 @@ When at most one child instance is active, store one child Model and an `Option`
 
 ::Snippet{name="submodelMultipleInstances" label="Folding a child in a collection" class="mb-4"}
 
-Use `Update.foldChildAt` to run a child update for one keyed Submodel. `readAt` finds the child Model, and `writeAt` stores the next one. `toParentMessage` receives the key when wrapping the result Message of each child Command. If `readAt` returns `None` for that key, the fold leaves the parent Model unchanged. The [job-application example](/example-apps/job-application) stores education, work-history, and skills Submodels in arrays.
+Use `Update.foldChildAt` to run a child update for one Submodel selected by key. `readAt` finds the child Model, and `writeAt` stores the next one. `toParentMessage` receives the key when wrapping the result Message of each child Command. If `readAt` returns `None` for that key, the fold leaves the parent Model unchanged. The [job-application example](/example-apps/job-application) stores education, work-history, and skills Submodels in arrays. Each Submodel has a stable entry ID that `foldChildAt` uses as its key.
 
-When a keyed child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. If an OutMessage handler returns a child Command, give the `foldOutMessage` factory a second `FoldContext` parameter and use its lifters to wrap the Command's result Message. To forward an OutMessage, `toParentOutMessage` takes the key and returns a matcher that produces a parent OutMessage. Neither factory runs when the child emits no OutMessage.
+When the selected child emits an OutMessage, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. If an OutMessage handler returns a child Command, give the `foldOutMessage` factory a second `FoldContext` parameter and use its lifters to wrap the Command's result Message. To forward an OutMessage, `toParentOutMessage` takes the key and returns a matcher that produces a parent OutMessage. Neither factory runs when the child emits no OutMessage.
 
 ## Memoization Across Submodel Boundaries {#memoization}
 
