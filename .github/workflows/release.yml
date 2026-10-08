@@ -34,7 +34,6 @@ on:
       - 'scripts/lib/package-version.mjs'
       - 'scripts/lib/website-package-inputs.mjs'
       - 'scripts/lib/workspace-packages.mjs'
-      - 'scripts/restore-website-fonts.sh'
       - 'scripts/version-alignment-notes.mjs'
       - 'scripts/website-vercel-config.mjs'
       - '.npmrc'
@@ -54,6 +53,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
       pull-requests: write
     outputs:
@@ -91,6 +91,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
           SKIP_SIMPLE_GIT_HOOKS: '1'
+
+      - name: Start Version Packages required checks
+        if: steps.changesets.outputs['has-changesets'] == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci.yml --ref changeset-release/main
+          gh workflow run examples-e2e.yml --ref changeset-release/main
 
   stable:
     name: Upload, verify, and promote stable packages
