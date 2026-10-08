@@ -50,6 +50,7 @@ const packedSsrConsumer =
     ],
     prefixes: [
       'packages/foldkit/',
+      'packages/markdown/',
       'packages/vite-plugin-foldkit/',
       'scripts/fixtures/packed-ssr-consumer/',
     ],
@@ -61,6 +62,7 @@ const hostParity =
     prefixes: [
       'examples/ssr/',
       'packages/foldkit/',
+      'packages/node/',
       'packages/vite-plugin-foldkit/',
       'scripts/fixtures/host-parity/',
     ],
@@ -79,6 +81,7 @@ const scaffoldServerRendering =
       'packages/devtools/',
       'packages/devtools-mcp/',
       'packages/foldkit/',
+      'packages/node/',
       'packages/oxlint-plugin-foldkit/',
       'packages/ui/',
       'packages/vite-plugin-foldkit/',
@@ -108,6 +111,7 @@ const peerFloors =
   fullWorkspaceChecks ||
   hasChanged({
     files: [
+      'packages/node/package.json',
       'packages/ui/package.json',
       'packages/devtools/package.json',
       'packages/devtools-mcp/package.json',
