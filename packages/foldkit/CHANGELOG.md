@@ -1,5 +1,271 @@
 # foldkit
 
+## 0.167.0
+
+### Minor Changes
+
+- [#1616](https://github.com/foldkit/foldkit/pull/1616) [`5f7e247`](https://github.com/foldkit/foldkit/commit/5f7e2470d7037b97f768a5cc478e2a0d920e5b28) Thanks [@devinjameson](https://github.com/devinjameson)! - Move browser event, media query, and key-binding Stream helpers and their types from `Subscription` to `Dom` ([#1621](https://github.com/foldkit/foldkit/pull/1621)). Update imports from `foldkit/subscription` to `foldkit/dom`, or use `Dom` from `foldkit`, for these helpers:
+
+  | Before                                          | After                                        |
+  | ----------------------------------------------- | -------------------------------------------- |
+  | `Subscription.fromEvent`                        | `Dom.streamFromEvent`                        |
+  | `Subscription.fromEventFilterMap`               | `Dom.streamFromEventFilterMap`               |
+  | `Subscription.fromEventFilterMapPreventDefault` | `Dom.streamFromEventFilterMapPreventDefault` |
+  | `Subscription.fromMediaQuery`                   | `Dom.streamFromMediaQuery`                   |
+  | `Subscription.keyBindings`                      | `Dom.streamFromKeyBindings`                  |
+
+  Update explicit config type references as well:
+
+  | Before                                                | After                                              |
+  | ----------------------------------------------------- | -------------------------------------------------- |
+  | `Subscription.FromEventConfig`                        | `Dom.StreamFromEventConfig`                        |
+  | `Subscription.FromEventFilterMapConfig`               | `Dom.StreamFromEventFilterMapConfig`               |
+  | `Subscription.FromEventFilterMapPreventDefaultConfig` | `Dom.StreamFromEventFilterMapPreventDefaultConfig` |
+  | `Subscription.FromMediaQueryConfig`                   | `Dom.StreamFromMediaQueryConfig`                   |
+  | `Subscription.KeyBindingsConfig`                      | `Dom.StreamFromKeyBindingsConfig`                  |
+
+  `TypedEventTarget`, `KeyBinding`, `KeySequence`, and `WhileTyping` move from `Subscription` to `Dom` with their names unchanged. The helpers accept the same arguments and return Effect Streams. Use `Subscription.persistentEntry` for a Stream with no dependencies on its Model, or pass a Stream to a Model-driven Subscription entry or a Mount.
+
+- [#1599](https://github.com/foldkit/foldkit/pull/1599) [`a7ca632`](https://github.com/foldkit/foldkit/commit/a7ca632fc2d1c8c0b32796a39e3b6f0795628895) Thanks [@armancharan](https://github.com/armancharan)! - `Update.foldChildAt` folds one Submodel selected by key. It leaves the parent Model unchanged when `readAt` returns `None` for that key. For child OutMessages, `foldOutMessage` takes the key and returns a matcher whose handlers produce parent Steps. `toParentOutMessage` takes the key and returns a matcher that can forward a child OutMessage.
+
+  The example below stores Applicant Submodels in an array. Each Submodel has a stable entry ID that `foldChildAt` uses as its key.
+
+  **Before (`foldChild`):** Create a fold that closes over each entry's key.
+
+  ```ts
+  const foldApplicant = (entryId: string) =>
+    Update.foldChild({
+      update: Applicant.update,
+      read: (model: Model) =>
+        Option.map(
+          Array.findFirst(
+            model.applicants,
+            applicant => applicant.id === entryId,
+          ),
+          applicant => applicant.entry,
+        ),
+      write: (model, nextEntry) =>
+        modifyFields(model, {
+          applicants: Array.map(applicant =>
+            applicant.id === entryId
+              ? modifyFields(applicant, { entry: () => nextEntry })
+              : applicant,
+          ),
+        }),
+      toParentMessage: message =>
+        Message.GotApplicantMessage({ entryId, message }),
+    })
+
+  const update = (model: Model, message: Message) =>
+    Message.match<Update.Return<Model, Message>>(message, {
+      GotApplicantMessage: ({ entryId, message }) =>
+        foldApplicant(entryId)(model, message),
+    })
+  ```
+
+  **After (`foldChildAt`):** Define one fold and pass the entry key to it. The fold supplies that key to `readAt`, `writeAt`, and `toParentMessage`.
+
+  ```ts
+  const foldApplicant = Update.foldChildAt({
+    update: Applicant.update,
+    readAt: (model: Model, entryId: string) =>
+      Option.map(
+        Array.findFirst(
+          model.applicants,
+          applicant => applicant.id === entryId,
+        ),
+        applicant => applicant.entry,
+      ),
+    writeAt: (model, entryId, nextEntry) =>
+      modifyFields(model, {
+        applicants: Array.map(applicant =>
+          applicant.id === entryId
+            ? modifyFields(applicant, { entry: () => nextEntry })
+            : applicant,
+        ),
+      }),
+    toParentMessage: (entryId, message) =>
+      Message.GotApplicantMessage({ entryId, message }),
+  })
+
+  const update = (model: Model, message: Message) =>
+    Message.match<Update.Return<Model, Message>>(message, {
+      GotApplicantMessage: ({ entryId, message }) =>
+        foldApplicant(model, entryId, message),
+    })
+  ```
+
+- [#1584](https://github.com/foldkit/foldkit/pull/1584) [`fe2701c`](https://github.com/foldkit/foldkit/commit/fe2701c2fa4bb4370f59548006bcee5cc009575e) Thanks [@devinjameson](https://github.com/devinjameson)! - Render SSR and SSG documents from server-entry code. An `ssr.build` browser build now starts from a script and never emits an unrendered HTML template. The server entry's `renderDocument` receives the rendered application and the browser build's script, stylesheet, and module-preload URLs. Request-time rendering and prerendering use the same document renderer. `Server.renderDocument` supplies a complete document with application metadata, hydration markers, and unambiguous handoff structure.
+
+  **Migration:** add `ssr.clientEntry: '/src/entry.ts'`, import stylesheets from that client entry, and export `renderDocument = Server.renderDocument` from the server entry. Remove the source `index.html` and move additional document tags into a wrapper around `Server.renderDocument(application, assets, { head })`. `head` accepts trusted author-owned HTML, so escape any request-derived values before interpolating them. Remove `containerId` from SSR build and prerender options. Standalone `foldkitBuild` calls must pass `clientEntry` in their options. Build-time `transformIndexHtml` hooks no longer run; dev hooks still transform the rendered document. Use an absolute-path or full-URL Vite `base`; relative bases and relative or runtime `renderBuiltUrl` results are rejected. Upgrade Foldkit to 0.167.0 or newer alongside @foldkit/vite-plugin 0.27.0. The plugin requires the document-rendering APIs introduced in Foldkit 0.167.0.
+
+  An SSR build refuses an `index.html` already in the browser output before prerendering, including files copied from `publicDir`, emitted by another plugin, or left by an earlier build with `emptyOutDir` disabled. Remove those root documents so only a generated page can occupy `/`.
+
+  Custom template-based hosts can use `injectIntoTemplate`, `toResponse`, and `handleRequest` with a template. The template-based Vite dev host is available when `clientEntry` and `ssr.build` are omitted. Separate client-only builds and previews support Vite's relative-base behavior. SSR and SSG scaffolds use code-rendered documents and CSS imports.
+
+- [#1622](https://github.com/foldkit/foldkit/pull/1622) [`8f88659`](https://github.com/foldkit/foldkit/commit/8f886595a02977c92612eb3833c85978ae3e7fa7) Thanks [@devinjameson](https://github.com/devinjameson)! - Rename the entry factories to match what they return. Replace `Subscription.persistent` with `Subscription.persistentEntry`, `Subscription.animationFrame` with `Subscription.animationFrameEntry`, and `Port.subscription` with `Port.subscriptionEntry`. Pass the returned entries to `Subscription.make` to construct a Subscriptions record.
+
+### Patch Changes
+
+- [#1586](https://github.com/foldkit/foldkit/pull/1586) [`2eb97fb`](https://github.com/foldkit/foldkit/commit/2eb97fb142a16b7a2ede2c49d50c49aa474c7d3a) Thanks [@devinjameson](https://github.com/devinjameson)! - Cancel streamed Web Response bodies when a server-rendered HEAD request omits the body, so application resources are released.
+
+- Rebuild with the release's shared tooling configuration so the published packages and website use the same build inputs.
+
+## 0.166.0
+
+### Minor Changes
+
+- [#1518](https://github.com/foldkit/foldkit/pull/1518) [`26e27fd`](https://github.com/foldkit/foldkit/commit/26e27fd937f971f20db9ad93ac38f0e3c4741aee) Thanks [@devinjameson](https://github.com/devinjameson)! - Require an `Option`-returning `read` in both `Subscription.lift` and `ManagedResource.lift`, matching `Update.foldChild`. A child can exist in only some parent states without a separate presence check and throwing extractor. Returning `None` stops its Subscriptions or releases its Managed Resources without reading child dependencies or requirements.
+
+  This is a breaking change. Rename `toChildModel` to `read` in both lift APIs. For Subscriptions, wrap an always-present child in `Option.some`:
+
+  ```ts
+  Subscription.lift(Settings.subscriptions)<Model, Message>({
+    read: model => Option.some(model.settings),
+    toParentMessage: message => Message.GotSettingsMessage({ message }),
+  })
+  ```
+
+  For an optional child, return its `Option` directly and remove any `when` used only to check that child's presence:
+
+  ```ts
+  Subscription.lift(Home.subscriptions)<Model, Message>({
+    read: model => model.maybeHome,
+    toParentMessage: message => Message.GotHomeMessage({ message }),
+  })
+  ```
+
+  ManagedResource readers already return `Option`, so only the field name changes. Subscription `when` predicates remain available for additional whole-record or per-entry conditions. A closed gate skips `read`; a missing child stops every entry, including entries omitted from a gate map.
+
+  Every lifted Subscription now exposes `GatedDependencies<ChildDependencies>` with a `maybeDependencies` field, including lifts without `when` and entries omitted from per-entry gates. Update code that directly inspects lifted dependency records accordingly. Child definitions keep their existing dependency types, services, and `keepAliveEquivalence` behavior. Migrate the DevTools overlay to the new reader contract.
+
+  DevTools now requires Foldkit 0.166.0 or newer because its overlay uses the new `read` field.
+
+- [#1425](https://github.com/foldkit/foldkit/pull/1425) [`9d701af`](https://github.com/foldkit/foldkit/commit/9d701af6a75161962a9600422743d7531c0e4828) Thanks [@rodygosset](https://github.com/rodygosset)! - Add experimental `Query` and `KeyedQuery` Submodels for fetched data that belongs in an application Model. Define the data and error Schemas together with the Effect that fetches the value, then embed the generated Model and Message in the parent. A Query holds one `AsyncData` value. A KeyedQuery holds one retained entry for each argument key, so revisiting data already loaded into the owning Model is a cache hit.
+
+  The parent still decides when work starts. `loadIfMissing` fetches only when no data is available, `revalidate` refreshes existing data, and `revalidateOrLoad` handles either state. Query tracks request generations, and `reset` preserves that history, so a late completion cannot settle work started after the reset. KeyedQuery's default key encoding canonicalizes object property order recursively. `read` returns the current `AsyncData`, `run` fetches data outside a Foldkit application, and `lift({ parentField, toParentMessage })` connects the Query to its parent.
+
+  Import Query from `foldkit/experimental` or `foldkit/experimental/query`. Create Foldkit App also includes `api-cache-query`, a complete example of list, detail, and interval-refreshed Queries.
+
+### Patch Changes
+
+- [#1534](https://github.com/foldkit/foldkit/pull/1534) [`0ec94a1`](https://github.com/foldkit/foldkit/commit/0ec94a178c504827060a5e475200599193b0387e) Thanks [@devinjameson](https://github.com/devinjameson)! - Protect Effect `Redacted` values across DevTools Model, Message, Command, Mount, init, and diff responses, including the Vite prebundle needed by consumers. Document the DevTools MCP trust boundary, the controls that disable dispatch or relay access, and why `excludeFromHistory` does not hide sensitive Model data.
+
+- Rebuild with the release's shared tooling configuration so the published packages and website use the same build inputs.
+
+- [#1583](https://github.com/foldkit/foldkit/pull/1583) [`37221d3`](https://github.com/foldkit/foldkit/commit/37221d3d84ae5cc797cb55c9d0b70746a804f441) Thanks [@devinjameson](https://github.com/devinjameson)! - Update the README tagline to “Build faster. Understand what ships.”
+
+## 0.165.0
+
+### Minor Changes
+
+- [#1525](https://github.com/foldkit/foldkit/pull/1525) [`9f851d7`](https://github.com/foldkit/foldkit/commit/9f851d747bdde8fab1e9b7e8c63568f65594cff8) Thanks [@devinjameson](https://github.com/devinjameson)! - Require Effect 4.0.0 stable across Foldkit packages and applications generated by `create-foldkit-app`, including the SPA, SSR, and SSG starters.
+
+  Upgrade Foldkit to `0.165.0` or newer alongside its companion packages. Their Foldkit peer minimum is now `0.165.0`, the first release using Effect 4 stable. DevTools also requires `@foldkit/ui` `0.165.0` or newer.
+
+  Upgrade `effect` and any installed `@effect/platform-browser`, `@effect/platform-node`, `@effect/platform-node-shared`, or `@effect/vitest` packages to `4.0.0` together. These versions replace the previous `4.0.0-rc.117` pins. Update imports from `effect/unstable/http`, `effect/unstable/persistence`, `effect/unstable/rpc`, and `effect/unstable/reactivity` to `effect/http`, `effect/persistence`, `effect/rpc`, and `effect/reactivity`. CLI imports now use `effect/cli`.
+
+### Patch Changes
+
+- [#1525](https://github.com/foldkit/foldkit/pull/1525) [`9f851d7`](https://github.com/foldkit/foldkit/commit/9f851d747bdde8fab1e9b7e8c63568f65594cff8) Thanks [@devinjameson](https://github.com/devinjameson)! - Support Effect 4 stable's lazy Schema constructor helpers in callable Message and Route variants. Read getters on the underlying Schema so repeated `.make`, `.makeOption`, and `.makeEffect` calls preserve validation and can be combined with direct constructor calls.
+
+- Rebuild with the release's shared tooling configuration so the published packages and website use the same build inputs.
+
+## 0.164.0
+
+### Minor Changes
+
+- [#1438](https://github.com/foldkit/foldkit/pull/1438) [`607f5a4`](https://github.com/foldkit/foldkit/commit/607f5a4aeb427c634de6e580f45adae93ea0c118) Thanks [@devinjameson](https://github.com/devinjameson)! - Generate one hydration build identity for coordinated client and server builds and compile it into Foldkit, so server-rendered applications no longer need to pass the identity through their entries.
+
+  `@foldkit/vite-plugin` now requires Foldkit 0.164.0 or newer because the automatic path compiles an identity placeholder added in that release.
+
+- [#1368](https://github.com/foldkit/foldkit/pull/1368) [`63949f4`](https://github.com/foldkit/foldkit/commit/63949f4e96600f03818b076cad6a50f1162ffdb4) Thanks [@filipfalcon](https://github.com/filipfalcon)! - The DevTools MCP relay now starts without a configured port. In development, the Vite server serves it at `/__foldkit/devtools-mcp` and publishes its address to a per-user registry. The MCP server finds the most recently started relay for its project and finds it again after a dev server restart. Projects no longer need matching port settings, and two projects can run without competing for a relay port. The relay follows Vite's `server.host` setting.
+
+  Each published address includes a random token. The relay requires that token before allowing Model inspection or Message dispatch, including when the dev server is exposed with `--host`. The plugin will not publish a token into a registry directory owned by another user or readable by other users. It reports the problem in the console; the relay can still be reached through a configured port.
+
+  Middleware mode and HTTPS dev servers use a free loopback port instead of the Vite server's listener. Middleware mode has no HTTP server for the relay to share, and the MCP server cannot verify a dev server's self-signed HTTPS certificate.
+
+  Existing port settings still work. `devToolsMcpPort` opens a separate socket on the specified port and every interface, without a token; set `FOLDKIT_DEVTOOLS_MCP_PORT` to the same value for the MCP server. `devToolsMcpPort: false` disables the relay. When discovery finds no relay and no port is configured, the MCP server tries port 9988 for older plugin versions. `FOLDKIT_DEVTOOLS_MCP_HOST` overrides the hostname of either a discovered address or a configured port.
+
+  The plugin no longer starts a relay during Vitest runs. Previously, a test run using a fixed relay port could conflict with the project's dev server and wait through the four-second bind retry before continuing.
+
+  `foldkit/devtools-protocol` now exports `RelayRecord`, `RELAY_RECORD_VERSION`, and the registry directory and environment variable names alongside the `Request` and `Response` frames. The plugin and MCP server use the same record definition. Because the plugin imports these exports at runtime, `@foldkit/vite-plugin` requires `foldkit` 0.164.0 or later. The plugin also depends on `@effect/platform-node` to read and write the registry.
+
+  The registry lives under `XDG_RUNTIME_DIR` when set and under the operating system's temporary directory otherwise. `FOLDKIT_DEVTOOLS_RELAY_DIRECTORY` selects another directory. On platforms where the plugin cannot verify directory ownership, including Windows, automatic discovery is unavailable. Use `devToolsMcpPort` with the matching `FOLDKIT_DEVTOOLS_MCP_PORT` there.
+
+  `create-foldkit-app` no longer adds `devToolsMcpPort` to generated Vite configs.
+
+- [#1442](https://github.com/foldkit/foldkit/pull/1442) [`5401108`](https://github.com/foldkit/foldkit/commit/5401108272c32b9b06f0175b46eef79bb7f23b43) Thanks [@devinjameson](https://github.com/devinjameson)! - Bump Effect to `4.0.0-rc.117` (from `4.0.0-rc.116`). Foldkit's `effect` peer dependency now requires `4.0.0-rc.117`, and `@foldkit/devtools` pins its `@effect/platform-browser` peer dependency to the same version.
+
+  Pin your Effect packages to `4.0.0-rc.117` to match this release. Use exact pins rather than ranges while Effect v4 is in prerelease:
+
+  ```sh
+  pnpm add effect@4.0.0-rc.117 @effect/platform-browser@4.0.0-rc.117
+  pnpm add -D @effect/vitest@4.0.0-rc.117
+  ```
+
+- [#1392](https://github.com/foldkit/foldkit/pull/1392) [`5be04ac`](https://github.com/foldkit/foldkit/commit/5be04ac25e5a508824508e7159a6ddc7c95412de) Thanks [@filipfalcon](https://github.com/filipfalcon)! - `Scene.role` could filter on `checked`, `selected`, `pressed`, `expanded` and `disabled`, but not on `aria-current`, the state every navigation, breadcrumb, pagination and stepper marks. Asserting the current page's link meant finding it by name and checking the raw attribute with `toHaveAttr`, which can only inspect one already-found element.
+
+  `role('link', { current: 'page' })` now selects by that state, with the same rule Testing Library's `getByRole` uses for its `current` option. A token (`page`, `step`, `location`, `date`, `time`) matches itself exactly, `current: true` matches `aria-current="true"` only, and `current: false` matches an element with no `aria-current` or an explicit `"false"`. The option also appears in the locator's description, so a failed match names it.
+
+- [#1437](https://github.com/foldkit/foldkit/pull/1437) [`9a44228`](https://github.com/foldkit/foldkit/commit/9a44228a742fb8d941bddba45b0406e032c6567b) Thanks [@filipfalcon](https://github.com/filipfalcon)! - Scene selectors now accept single- or double-quoted attribute values containing whitespace and support `:not()`. Before, `Scene.selector('a[aria-label="Open menu"]')` threw because the parser split the selector on every space, including spaces inside quotes, and `path[d]:not([d=""])` threw because `:not()` was unsupported.
+
+  `:not()` takes one compound selector, such as `:not([d=""])`, `:not(.hidden)`, or `:not(button.primary)`, and may be nested or repeated. A selector list or combinator inside `:not()` still throws.
+
+  Every selector that parsed before matches exactly the same elements. The supported syntax is now listed in the `selector` and `all.selector` TSDoc, on the Scene testing page, and in the parse error.
+
+- [#1430](https://github.com/foldkit/foldkit/pull/1430) [`c9e82fb`](https://github.com/foldkit/foldkit/commit/c9e82fbb078a2cf2b7597f89a5baa579bf7efd32) Thanks [@filipfalcon](https://github.com/filipfalcon)! - `Scene.text`, `Scene.all.text`, `Scene.getByText`, and `Scene.getAllByText` now accept regular expressions. For example, `Scene.text(/^save \d+ items$/i)` finds `Save 3 items` without hard-coding the number or capitalization.
+
+  A regular expression tests an element's full text, including text from nested elements. Scene starts at index zero for each element and leaves the expression's `lastIndex` unchanged, so global and sticky expressions produce the same results when a query runs more than once. The `exact` option applies only to strings.
+
+  String matching has not changed. When an ancestor and one of its descendants both match, a single text query returns the descendant. A multi-match query returns both in traversal order.
+
+- [#1424](https://github.com/foldkit/foldkit/pull/1424) [`95fed7f`](https://github.com/foldkit/foldkit/commit/95fed7fdafa38df62185391249f5bc7bb319754d) Thanks [@filipfalcon](https://github.com/filipfalcon)! - Add `Subscription.fromMediaQuery`, which creates a Stream from a CSS media query. When the Stream starts, it emits the query's current `matches` value through `mapMatches`. It emits again whenever the value changes. Apps can map those results to Messages for reduced motion, system color scheme, or a viewport breakpoint without combining a boot-time read with a hand-written listener.
+
+  Each time the Stream restarts, it reads and emits the current value again. Suppose a color-scheme Subscription runs only while the theme preference is `System`. The user selects `Dark`, changes the operating system to a light theme, and then selects `System` again. A new `change` listener waits for the next change, so the Model still records a dark system theme. `fromMediaQuery` reads the current light value as soon as the Stream restarts.
+
+  ```ts
+  const subscriptions = Subscription.make<Model, Message>()(_entry => ({
+    reducedMotion: Subscription.persistent(
+      Subscription.fromMediaQuery({
+        query: '(prefers-reduced-motion: reduce)',
+        mapMatches: isMatching =>
+          Message.ChangedReducedMotion({ isReducedMotion: isMatching }),
+      }),
+    ),
+  }))
+  ```
+
+  Creating the Stream does not access `window`; `window.matchMedia` is called only when the Stream starts. Stopping the Stream removes its listener. The helper returns a Stream, so pass it to `Subscription.persistent` or gate it with `Stream.when` inside a `Subscription.make` entry.
+
+### Patch Changes
+
+- Rebuild with the release's shared tooling configuration so the published packages and website use the same build inputs.
+
+- [#1427](https://github.com/foldkit/foldkit/pull/1427) [`989f8db`](https://github.com/foldkit/foldkit/commit/989f8db07e4f073e9fba46faf4096153eea2e94a) Thanks [@devinjameson](https://github.com/devinjameson)! - Preserve independent DOM ownership when lazy views share a constant root VNode. Removing and restoring one view no longer overwrites another view's DOM reference. Cache hits retain their existing identity shortcut.
+
+- [#1467](https://github.com/foldkit/foldkit/pull/1467) [`1a3dd68`](https://github.com/foldkit/foldkit/commit/1a3dd68616dcc00e8070f817f84510e69eeca24a) Thanks [@devinjameson](https://github.com/devinjameson)! - Upgrade compatible runtime, build, and test dependencies across the workspace.
+
+- [#1502](https://github.com/foldkit/foldkit/pull/1502) [`3fcfac2`](https://github.com/foldkit/foldkit/commit/3fcfac2fb1b5ce782468822b61f543e2a6042a67) Thanks [@filipfalcon](https://github.com/filipfalcon)! - Refuse a deeply nested view with the documented depth-limit error instead of a stack overflow. `renderToString` caps nesting at 1000 levels, but the check ran inside recursive walks, so reaching it depended on the available call stack. On Node 22, a view nested just under the limit could crash server rendering with `RangeError: Maximum call stack size exceeded`. At greater depths, the reserved-content or controlled-select traversal could overflow before reaching the guard, so the `SerializationError` carried a `RangeError` instead of the depth-limit message.
+
+  The limit is now checked in a pass that does not recurse, before serialization walks the view. Serialization and the check for reserved hydration attributes keep their own work stacks, so views at the boundary render consistently and a view past it gets the depth-limit error however deep it is. Deep markup inside a trusted `h.InnerHTML` is not counted toward the limit.
+
+  The depth check now runs before serialization, so it takes precedence over errors discovered while serializing the view. For example, a view past the limit gets the depth-limit error even when an earlier controlled `<select>` has no matching option. The count also includes children the serializer does not write, so elements nested past the limit inside a raw-text element such as `<script>`, `<style>` or `<noscript>` get the depth-limit error instead of the error that refused those children.
+
+  The limit, the error message, `SerializationError`, and the rendered markup of every view within the limit are unchanged.
+
+- [#1426](https://github.com/foldkit/foldkit/pull/1426) [`e072cf5`](https://github.com/foldkit/foldkit/commit/e072cf5b439bb5bf691fe4bb71ca5af49e8ff35e) Thanks [@devinjameson](https://github.com/devinjameson)! - Retain DOM event listener ownership when an unchanged handler map is reused across distinct VNodes, so later handler changes and removals dispatch correctly.
+
+- [#1423](https://github.com/foldkit/foldkit/pull/1423) [`64bc546`](https://github.com/foldkit/foldkit/commit/64bc546a2c838be70642b5dc722f29fc068584c4) Thanks [@filipfalcon](https://github.com/filipfalcon)! - Find native blockquotes with `Scene.role('blockquote')` and `Scene.all.role('blockquote')`. These locators previously returned no match unless the element had an explicit role, forcing tests to use a selector for native quotation markup.
+
+  Add the other missing fixed mappings confirmed by the [ARIA in HTML W3C Recommendation of 11 August 2026](https://www.w3.org/TR/2026/REC-html-aria-20260811/#docconformance): `address`, `caption`, `code`, `del`, `dfn`, `em`, `hgroup`, `ins`, `menu`, `optgroup`, `s`, `search`, `strong`, `sub`, `sup`, `tbody`, `tfoot`, `thead`, and `time`. Draft-only mappings are excluded.
+
+  Role queries can now return additional matches or a different first match, particularly for `group` and `list`. Use the existing scoped locators when a query needs to target a particular container. Explicit roles keep their precedence, and query signatures and rendered markup are unchanged.
+
+- [#1452](https://github.com/foldkit/foldkit/pull/1452) [`7493855`](https://github.com/foldkit/foldkit/commit/74938552082b1933b55b0e9e73c2032c5a74b819) Thanks [@armancharan](https://github.com/armancharan)! - `match` on a `defineTaggedUnion`, `defineMessageUnion`, or `defineRouteUnion` now infers the union of the handler return types when no output type argument is given. Handlers that return different variants of another union typecheck, and the result is that union.
+
+  Passing an output type argument still constrains every handler, including `Message.match<Update.Return<Model, Message>>(...)`. The optional second type argument still preserves a narrower input in each handler.
+
 ## 0.163.0
 
 ### Minor Changes

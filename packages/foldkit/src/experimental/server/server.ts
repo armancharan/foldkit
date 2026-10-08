@@ -786,7 +786,7 @@ const hasScriptElement = (
         hasScriptElement(traversableContent(child))),
   )
 
-const assertViewDoesNotAuthorReservedContent = (node: VNode): void => {
+const assertNodeDoesNotAuthorReservedContent = (node: VNode): void => {
   const attrs = node.data?.attrs
   if (attrs !== undefined) {
     for (const name of Object.keys(attrs)) {
@@ -838,9 +838,26 @@ const assertViewDoesNotAuthorReservedContent = (node: VNode): void => {
       )
     }
   }
-  for (const child of node.children ?? []) {
-    if (typeof child !== 'string') {
-      assertViewDoesNotAuthorReservedContent(child)
+}
+
+const assertViewDoesNotAuthorReservedContent = (root: VNode): void => {
+  const pendingNodes: globalThis.Array<VNode> = [root]
+  for (
+    let node = pendingNodes.pop();
+    node !== undefined;
+    node = pendingNodes.pop()
+  ) {
+    assertNodeDoesNotAuthorReservedContent(node)
+
+    const { children } = node
+
+    if (children !== undefined) {
+      for (let index = children.length - 1; index >= 0; index--) {
+        const child = Array.getUnsafe(children, index)
+        if (typeof child !== 'string') {
+          pendingNodes.push(child)
+        }
+      }
     }
   }
 }
@@ -991,7 +1008,7 @@ export { FOLDKIT_APP_ATTRIBUTE, FOLDKIT_FLAGS_ATTRIBUTE }
 const DEFAULT_RUNTIME_ID = 'app'
 
 /** The server render of one request: the body markup and the `Document` head
- *  fields for the host to place into its HTML template. Hydratable output
+ *  fields for the document renderer or a custom host's template. Hydratable output
  *  contains a stamped root and, when the application declares Flags, its
  *  payload script. Static output carries no handoff markers.
  *
