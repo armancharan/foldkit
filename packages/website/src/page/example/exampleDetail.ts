@@ -9,7 +9,11 @@ import { CodeBlock } from '../../component'
 import { Icon } from '../../icon'
 import { exampleSourceHref } from '../../link'
 import { pageTitle, para } from '../../prose'
-import { examplesRouter, playgroundRouter } from '../../route'
+import {
+  exampleDetailRouter,
+  examplesRouter,
+  playgroundRouter,
+} from '../../route'
 import type { TableOfContentsEntry } from '../../tableOfContentsEntry'
 import { Message } from './message'
 import { type ExampleMeta, findBySlug } from './meta'
@@ -117,6 +121,12 @@ export const init = (): UpdateReturn => ({
   },
 })
 
+const isSourceAvailable = (slug: string): boolean =>
+  Option.match(findBySlug(slug), {
+    onNone: () => true,
+    onSome: meta => meta.livePreview !== 'Unavailable',
+  })
+
 export const boot = (
   maybeInitialSlug: Option.Option<string>,
   maybeExampleSources: Option.Option<
@@ -129,7 +139,9 @@ export const boot = (
       Option.match(maybeInitialSlug, {
         onNone: () => init_,
         onSome: slug =>
-          update(init_.model, Message.RequestedExampleSources({ slug })),
+          isSourceAvailable(slug)
+            ? update(init_.model, Message.RequestedExampleSources({ slug }))
+            : init_,
       }),
     onSome: sources =>
       update(init_.model, Message.SucceededLoadExampleSources({ sources })),
@@ -180,7 +192,16 @@ export const update = (model: Model, message: Message) =>
   })
 
 export const informRouteChanged = (model: Model, slug: string) =>
-  update(model, Message.RequestedExampleSources({ slug }))
+  isSourceAvailable(slug)
+    ? update(model, Message.RequestedExampleSources({ slug }))
+    : {
+        model: modifyFields(model, {
+          sourceFileTabs: () => Tabs.init({ id: 'source-file-tabs' }),
+          maybeActiveSourceFilePath: () => Option.none(),
+          maybeExampleUrl: () => Option.none(),
+          currentSources: () => CurrentSourcesAsyncData.Idle(),
+        }),
+      }
 
 // VIEW
 
@@ -188,7 +209,7 @@ const featureTag = (text: string): Html =>
   ih.div(
     [
       ih.Class(
-        'text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+        'text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
       ),
     ],
     [text],
@@ -203,6 +224,21 @@ const launchPlaygroundLink = (meta: ExampleMeta): Html =>
     [Icon.bolt('w-4 h-4'), 'Launch Playground'],
   )
 
+const exampleActions = (meta: ExampleMeta): Html =>
+  ih.div(
+    [ih.Class('flex flex-col items-start gap-3 mt-3')],
+    [
+      launchPlaygroundLink(meta),
+      ih.a(
+        [
+          ih.Href(exampleSourceHref(meta.slug)),
+          ih.Class('link-accent text-sm'),
+        ],
+        ['View source on GitHub'],
+      ),
+    ],
+  )
+
 const headerView = (meta: ExampleMeta): Html =>
   ih.div(
     [ih.Class('mb-6')],
@@ -211,30 +247,57 @@ const headerView = (meta: ExampleMeta): Html =>
         [
           ih.Href(examplesRouter()),
           ih.Class(
-            'inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-4',
+            'inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors mb-4',
           ),
         ],
         [Icon.chevronLeft('w-4 h-4'), 'All Examples'],
       ),
       pageTitle('example-detail', meta.title),
       para(meta.description),
-      ih.div(
-        [ih.Class('flex flex-wrap items-center gap-2 mt-3')],
-        Array.map(meta.tags, text => featureTag(text)),
+      ...(meta.livePreview === 'Unavailable'
+        ? []
+        : [
+            ih.div(
+              [ih.Class('flex flex-wrap items-center gap-2 mt-3')],
+              Array.map(meta.tags, text => featureTag(text)),
+            ),
+          ]),
+      ...(meta.livePreview === 'Unavailable' ? [] : [exampleActions(meta)]),
+    ],
+  )
+
+const pausedExampleNotice = (meta: ExampleMeta): Html =>
+  ih.div(
+    [
+      ih.Class(
+        'rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100',
       ),
-      ih.div(
-        [ih.Class('flex flex-col items-start gap-3 mt-3')],
-        [
-          launchPlaygroundLink(meta),
-          ih.a(
-            [
-              ih.Href(exampleSourceHref(meta.slug)),
-              ih.Class('link-accent text-sm'),
-            ],
-            ['View source on GitHub'],
-          ),
-        ],
+    ],
+    [
+      ih.h2(
+        [ih.Class('text-base font-semibold mb-2')],
+        [`${meta.title} is paused`],
       ),
+      ...(meta.slug === 'livestore'
+        ? [
+            ih.p(
+              [ih.Class('leading-relaxed mt-3')],
+              [
+                'For a current example of a third-party integration with a live connection, see ',
+                ih.a(
+                  [
+                    ih.Href(
+                      exampleDetailRouter({ exampleSlug: 'websocket-chat' }),
+                    ),
+                    ih.Class('link-accent font-medium'),
+                  ],
+                  ['WebSocket Chat'],
+                ),
+                '.',
+              ],
+            ),
+          ]
+        : []),
     ],
   )
 
@@ -268,7 +331,7 @@ const disclosureChevron = (isOpen: boolean): Html =>
   ih.span(
     [
       ih.Class(
-        `transition-transform text-gray-400 dark:text-gray-500 ${isOpen ? 'rotate-180' : ''}`,
+        `transition-transform text-gray-500 dark:text-gray-500 ${isOpen ? 'rotate-180' : ''}`,
       ),
     ],
     [Icon.chevronDown('w-4 h-4')],
@@ -338,7 +401,7 @@ const livePreviewDisclosureView = (
                         h.div(
                           [
                             h.Class(
-                              'flex-1 text-xs font-mono text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 rounded px-3 py-1 text-center truncate',
+                              'flex-1 text-xs font-mono text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-900 rounded px-3 py-1 text-center truncate',
                             ),
                           ],
                           [urlBarContent(meta, maybeExampleUrl)],
@@ -393,7 +456,7 @@ const TAB_BUTTON_ACTIVE =
 
 const TAB_BUTTON_INACTIVE =
   TAB_BUTTON_BASE +
-  ' text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
+  ' text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/50 dark:hover:bg-gray-800/50'
 
 const sourceCodeView = (
   exampleSlug: string,
@@ -401,10 +464,10 @@ const sourceCodeView = (
   tabsModel: Tabs.Model,
   activeSourceFilePath: string,
   isNarrowViewport: boolean,
-  renderCopyButton: CodeBlock.RenderCopyButton,
+  renderSnippet: CodeBlock.RenderSnippet,
   h: HtmlBuilder<Message>,
 ): Html => {
-  const highlightedView = CodeBlock.highlightedViewFor(renderCopyButton)
+  const highlightedView = CodeBlock.highlightedViewFor(renderSnippet)
 
   const filePaths = Array.map(files, file => file.path)
 
@@ -548,28 +611,76 @@ const sourcesFailureView = (error: string): Html =>
         ],
         ['Failed to load example sources'],
       ),
-      ih.div([ih.Class('text-sm text-gray-600 dark:text-gray-400')], [error]),
+      ih.div([ih.Class('text-sm text-gray-700 dark:text-gray-400')], [error]),
     ],
   )
+
+const availableExampleContentView = (
+  model: Model,
+  meta: ExampleMeta,
+  slug: string,
+  isNarrowViewport: boolean,
+  renderSnippet: CodeBlock.RenderSnippet,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> => [
+  meta.livePreview === 'PlaygroundOnly'
+    ? playgroundOnlyNotice(meta)
+    : livePreviewDisclosureView(
+        model.isLivePreviewOpen,
+        meta,
+        slug,
+        model.maybeExampleUrl,
+        h,
+      ),
+  h.div(
+    [h.Class('mt-6')],
+    [
+      AsyncData.matchData(model.currentSources, {
+        onEmpty: () => sourcesSkeletonView(),
+        onFailure: error => sourcesFailureView(error),
+        onData: sources =>
+          h.div(
+            [],
+            Array.match(sources.files, {
+              onEmpty: () => [],
+              onNonEmpty: files => [
+                sourceCodeView(
+                  slug,
+                  files,
+                  model.sourceFileTabs,
+                  Option.getOrElse(
+                    model.maybeActiveSourceFilePath,
+                    () => Array.headNonEmpty(files).path,
+                  ),
+                  isNarrowViewport,
+                  renderSnippet,
+                  h,
+                ),
+              ],
+            }),
+          ),
+      }),
+    ],
+  ),
+]
 
 type ViewInputs = Readonly<{
   slug: string
   isNarrowViewport: boolean
-  renderCopyButton: CodeBlock.RenderCopyButton
+  renderSnippet: CodeBlock.RenderSnippet
 }>
 
 /**
  * Renders one example app: its header, the live preview, and the source files
  * behind a Tabs Submodel.
  *
- * The page is dispatched through `h.submodel`, so it takes `renderCopyButton`
- * from its parent rather than building the SnippetCopy boundary itself. The
- * renderer runs in the parent's boundary, so the nested Submodel's Message is
- * wrapped for the parent instead of being rejected by this page's
- * `toParentMessage`.
+ * The page is dispatched through `h.submodel`, so it takes the snippet renderer
+ * from its parent rather than building the interactive boundaries itself. The
+ * renderer runs in the parent's boundary, so its Messages are wrapped for the
+ * parent instead of being rejected by this page's `toParentMessage`.
  */
 export const view = Submodel.defineView<Model, Message, ViewInputs>(
-  (model, { slug, isNarrowViewport, renderCopyButton }, h): Html =>
+  (model, { slug, isNarrowViewport, renderSnippet }, h): Html =>
     Option.match(findBySlug(slug), {
       onNone: () => h.div([], ['Example not found']),
       onSome: meta =>
@@ -578,45 +689,16 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
           [],
           [
             headerView(meta),
-            meta.livePreview === 'PlaygroundOnly'
-              ? playgroundOnlyNotice(meta)
-              : livePreviewDisclosureView(
-                  model.isLivePreviewOpen,
+            ...(meta.livePreview === 'Unavailable'
+              ? [pausedExampleNotice(meta)]
+              : availableExampleContentView(
+                  model,
                   meta,
                   slug,
-                  model.maybeExampleUrl,
+                  isNarrowViewport,
+                  renderSnippet,
                   h,
-                ),
-            h.div(
-              [h.Class('mt-6')],
-              [
-                AsyncData.matchData(model.currentSources, {
-                  onEmpty: () => sourcesSkeletonView(),
-                  onFailure: error => sourcesFailureView(error),
-                  onData: sources =>
-                    h.div(
-                      [],
-                      Array.match(sources.files, {
-                        onEmpty: () => [],
-                        onNonEmpty: files => [
-                          sourceCodeView(
-                            slug,
-                            files,
-                            model.sourceFileTabs,
-                            Option.getOrElse(
-                              model.maybeActiveSourceFilePath,
-                              () => Array.headNonEmpty(files).path,
-                            ),
-                            isNarrowViewport,
-                            renderCopyButton,
-                            h,
-                          ),
-                        ],
-                      }),
-                    ),
-                }),
-              ],
-            ),
+                )),
           ],
         ),
     }),

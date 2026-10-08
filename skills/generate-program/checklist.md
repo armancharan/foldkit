@@ -88,7 +88,7 @@ done
 # no Ui namespace on foldkit. Any Ui.Something is a stale import.
 grep -rn "\bUi\.[A-Z]" src/
 
-# Wrong origin for HttpClient. It lives in 'effect/unstable/http'. Assert that
+# Wrong origin for HttpClient. It lives in 'effect/http'. Assert that
 # rather than blacklisting one wrong package: it also gets imported from 'effect'
 # and from '@effect/platform', and a blacklist misses whichever one you didn't list.
 # Check per FILE, not per line: `import { ... HttpClient ... } from '...'` usually
@@ -96,7 +96,7 @@ grep -rn "\bUi\.[A-Z]" src/
 # single-line pattern sees neither together.
 # (@effect/platform-browser is fine; that's KeyValueStore and Crypto.)
 for f in $(grep -rl "HttpClient" src/); do
-  grep -q "from 'effect/unstable/http'" "$f" || echo "WRONG HttpClient ORIGIN: $f"
+  grep -q "from 'effect/http'" "$f" || echo "WRONG HttpClient ORIGIN: $f"
 done
 
 # Review update return types. Inline Update.Return at a Message.match when that
@@ -299,7 +299,7 @@ Foldkit ships these; reaching past them is a finding, not a style choice.
 - [ ] Child folds include `toParentOutMessage` only when at least one child OutMessage should continue to the current Submodel's parent. Partial forwarding matches every child variant and returns `undefined` for variants that stop here. The property is omitted when every variant stops here, and no `toParentOutMessage: () => undefined` mapping appears
 - [ ] Two-or-more-step post-mutation handlers use `Update.combine(model, [...])` and `Update.refresh({ read, revalidate, write, load })` rather than hand-threaded `modifyFields` chains and conditional Command arrays. One Step is not wrapped in `Update.combine`, and an inline Step parameter is named `stepModel`
 - [ ] `Update.foldChildInit`, `Update.foldChildInits`, `Update.foldChild`, or `Update.foldChildStep` re-tag child Submodel Commands through `toParentMessage` when applicable; direct `Command.mapMessages` is reserved for lower-level helpers and route-gated initialization
-- [ ] HTTP uses `HttpClient` / `HttpClientRequest` from `effect/unstable/http`, with `Effect.provide(effect, Http.layer)` to supply the client. Not `@effect/platform` (`@effect/platform-browser` is separate and is for `BrowserKeyValueStore` / `BrowserCrypto`)
+- [ ] HTTP uses `HttpClient` / `HttpClientRequest` from `effect/http`, with `Effect.provide(effect, Http.layer)` to supply the client. Not `@effect/platform` (`@effect/platform-browser` is separate and is for `BrowserKeyValueStore` / `BrowserCrypto`)
 - [ ] UI components are imported from `@foldkit/ui` by name (`import { Dialog, Input } from '@foldkit/ui'`). There is no `Ui` namespace on `foldkit`
 
 ## Effect-TS patterns
@@ -518,7 +518,7 @@ Items without a tier marker apply universally (even to a 50-line counter). When 
 - [ ] Managed Resources use `ManagedResource.make<Model, Message>()(entry => ({ key: entry(requirementsSchema, config) }))`. The requirements schema is the positional first argument (usually `Schema.Option(...)`), not a field on `config`. No standalone `ManagedResourceDeps` struct.
 - [ ] `modelToMaybeRequirements` returns `Option.some(params)` to acquire and `Option.none()` to release. `acquire` fails into the error channel so `onAcquireError` fires instead of crashing; `release` never throws.
 - [ ] The service union is read with `ManagedResource.ServicesOf<typeof managedResources>`, not hand-maintained in parallel.
-- [ ] A child Submodel that owns a Managed Resource exposes its own `make` record in child terms; the parent composes it with `ManagedResource.lift(childRecord)<Parent, Parent>({ toChildModel, toParentMessage })` (where `toChildModel` returns `Option<ChildModel>`) and `ManagedResource.aggregate`. No hand-rolled parent factory threading `toChildModel`/`toParentMessage` into the child.
+- [ ] A child Submodel that owns a Managed Resource exposes its own `make` record in child terms; the parent composes it with `ManagedResource.lift(childRecord)<Parent, Parent>({ read, toParentMessage })` (where `read` returns `Option<ChildModel>`) and `ManagedResource.aggregate`. No hand-rolled parent factory threading `read`/`toParentMessage` into the child.
 
 ## Testing quality
 

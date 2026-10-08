@@ -16,7 +16,7 @@ Open the Dialog from a trigger by dispatching your own Message. Fold `Dialog.ope
 
 ::Demo{name="dialog"}
 
-::Snippet{name="uiDialogBasic" label="dialog example"}
+::Snippet{name="uiDialogBasic" label="Dialog"}
 
 ### Animated
 
@@ -24,15 +24,15 @@ Pass `isAnimated: true` at init to coordinate animations. The component manages 
 
 ::Demo{name="animated"}
 
-::Snippet{name="uiDialogAnimated" label="animated dialog example"}
+::Snippet{name="uiDialogAnimated" label="Animated dialog"}
 
 ### Field
 
-A field inside a dialog can open its own overlay, like a Combobox or DatePicker. By default that overlay portals its panel to the document body, where the dialog renders on top of it. Pass `anchor: { portal: false }` so the panel stays inside the dialog and remains visible.
+A field inside a dialog can open its own overlay, like a Combobox or DatePicker. The overlay portals its panel into the dialog, not to the document body. The panel renders above the dialog's content, a scrolling dialog panel does not clip it, and it stays interactive while the Dialog makes the rest of the page inert. The overlay needs no anchor configuration. Its wrapper needs `position: relative`, as it does outside a dialog. The overlay's click-outside backdrop goes directly before that wrapper, and a positioned wrapper keeps the trigger or input above the backdrop.
 
 ::Demo{name="overlay"}
 
-::Snippet{name="uiDialogOverlay" label="field dialog example"}
+::Snippet{name="uiDialogOverlay" label="Combobox overlay in a Dialog"}
 
 ### Stacked
 
@@ -40,7 +40,7 @@ Use a separate Dialog Model for each level and open the second from a button in 
 
 ::Demo{name="nested"}
 
-::Snippet{name="uiDialogNested" label="stacked dialogs example"}
+::Snippet{name="uiDialogNested" label="Stacked dialogs"}
 
 ## Styling
 
@@ -60,7 +60,7 @@ When `isAnimated` is true, enter/leave animations flow through the [Animation](/
 
 Use `Dialog.boot()` when a Dialog should be open when the application starts. Pass its result to `Update.foldChildInit` so the parent incorporates the Dialog Model, maps its Commands to the parent Message type, and handles its `Opened` OutMessage.
 
-::Snippet{name="uiDialogInitiallyOpen" label="starting with an open Dialog"}
+::Snippet{name="uiDialogInitiallyOpen" label="Starting with an open Dialog"}
 
 See [Folding Update with Update.foldChild](/core/submodel#fold-child) for the general child-initialization pattern.
 

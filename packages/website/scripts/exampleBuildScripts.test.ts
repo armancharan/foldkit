@@ -28,9 +28,6 @@ const buildScriptOf = (slug: string): string => {
   return manifest.scripts['build'] ?? ''
 }
 
-const exampleFile = (slug: string, fileName: string): string =>
-  readFileSync(resolve(REPO_ROOT, 'examples', slug, fileName), 'utf8')
-
 // The playground and the example source tabs both publish what an example is
 // made of. `vite build` reads the config rather than a script, so the config is
 // the file that has to reach both.
@@ -71,31 +68,6 @@ describe('server-rendered example build scripts', () => {
     expect(manifest.devDependencies).toHaveProperty('vite')
   })
 
-  it('uses the LiveStore Vite config in its playground', async () => {
-    const bySlug = await loadPlaygroundFiles()
-    const liveStoreEntry = Object.entries(bySlug).find(
-      ([slug]) => slug === 'livestore',
-    )
-    if (liveStoreEntry === undefined) {
-      throw new Error('the transformed playground files omit livestore')
-    }
-    const [, liveStore] = liveStoreEntry
-
-    const viteConfigFile = Object.entries(liveStore.files).find(
-      ([path]) => path === 'vite.config.ts',
-    )
-    if (viteConfigFile === undefined) {
-      throw new Error(
-        'the transformed livestore playground omits vite.config.ts',
-      )
-    }
-    const [, viteConfig] = viteConfigFile
-
-    expect(viteConfig).toBe(
-      exampleFile('livestore', 'vite.config.playground.ts'),
-    )
-  })
-
   it('pins every transformed workspace dependency to its exact version', async () => {
     const [bySlug, versions] = await Promise.all([
       loadPlaygroundFiles(),
@@ -110,10 +82,17 @@ describe('server-rendered example build scripts', () => {
       const manifest: Readonly<{
         dependencies?: Readonly<Record<string, string>>
         devDependencies?: Readonly<Record<string, string>>
+        optionalDependencies?: Readonly<Record<string, string>>
+        peerDependencies?: Readonly<Record<string, string>>
       }> = JSON.parse(source)
       const dependencies = {
         ...(manifest.dependencies ?? {}),
         ...(manifest.devDependencies ?? {}),
+        ...(manifest.optionalDependencies ?? {}),
+        ...(manifest.peerDependencies ?? {}),
+      }
+      for (const [name, specifier] of Object.entries(dependencies)) {
+        expect(specifier, `${slug}: ${name}`).not.toMatch(/^workspace:/)
       }
       for (const [name, version] of Object.entries(versions)) {
         if (dependencies[name] !== undefined) {
@@ -157,10 +136,18 @@ describe('server-rendered example build scripts', () => {
         const manifest: Readonly<{
           dependencies?: Readonly<Record<string, string>>
           devDependencies?: Readonly<Record<string, string>>
+          optionalDependencies?: Readonly<Record<string, string>>
+          peerDependencies?: Readonly<Record<string, string>>
         }> = JSON.parse(source)
         const dependencies = {
           ...(manifest.dependencies ?? {}),
           ...(manifest.devDependencies ?? {}),
+          ...(manifest.optionalDependencies ?? {}),
+          ...(manifest.peerDependencies ?? {}),
+        }
+
+        for (const [name, specifier] of Object.entries(dependencies)) {
+          expect(specifier, `${slug}: ${name}`).not.toMatch(/^workspace:/)
         }
 
         for (const [name, stableVersion] of Object.entries(stableVersions)) {
