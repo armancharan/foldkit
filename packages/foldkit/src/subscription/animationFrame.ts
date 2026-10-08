@@ -6,7 +6,7 @@ import {
 } from '../runtime/animationFramePhase.js'
 
 /**
- * Configuration for the `animationFrame` Subscription helper.
+ * Configuration for the `animationFrameEntry` Subscription helper.
  *
  * `isActive(model)` controls whether the request-animation-frame loop is
  * scheduled at all. When it returns `false` (e.g. the game is paused, the
@@ -65,7 +65,7 @@ const makeAnimationFrameStream = <Message>(
   )
 
 /**
- * Build a Subscription that emits a Message on every
+ * Build a Subscription entry that emits a Message on every
  * `requestAnimationFrame` tick, with the inter-frame delta in milliseconds.
  * The runtime renders the Model that tick produced before the browser
  * paints the frame, so the view keeps up with the display.
@@ -73,7 +73,7 @@ const makeAnimationFrameStream = <Message>(
  * @example
  * ```typescript
  * const subscriptions = Subscription.make<Model, Message>()(_entry => ({
- *   frame: Subscription.animationFrame({
+ *   frame: Subscription.animationFrameEntry({
  *     isActive: model => model.isPlaying,
  *     toMessage: deltaTime => Tick({ deltaTime }),
  *   }),
@@ -90,7 +90,7 @@ const makeAnimationFrameStream = <Message>(
  * Returns an entry shape, not a branded Subscription. Pass it into
  * `Subscription.make` as an entry value.
  */
-export const animationFrame = <Model, Message>(
+export const animationFrameEntry = <Model, Message>(
   config: AnimationFrameConfig<Model, Message>,
 ) => ({
   dependenciesSchema: Schema.Struct({ isActive: Schema.Boolean }),
