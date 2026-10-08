@@ -16,7 +16,7 @@ import {
   aggregate,
   lift,
   make,
-  persistent,
+  persistentEntry,
 } from './subscription.js'
 
 type ChildModel = Readonly<{
@@ -749,7 +749,7 @@ describe('aggregate', () => {
   }))
 
   const viewportSubscriptions = make<ThemeModel, ViewportMessage>()(() => ({
-    viewportWidth: persistent(
+    viewportWidth: persistentEntry(
       Stream.succeed<ViewportMessage>({ _tag: 'ResizedViewport', width: 0 }),
     ),
   }))
@@ -927,10 +927,10 @@ describe('aggregate', () => {
       combined.viewportWidth.modelToDependencies,
     ).returns.toEqualTypeOf<Record<string, never>>()
 
-    const persistentFirst = aggregate(viewportSubscriptions, themeSubscriptions)
+    const streamFirst = aggregate(viewportSubscriptions, themeSubscriptions)
 
     expectTypeOf(
-      persistentFirst.systemTheme.modelToDependencies,
+      streamFirst.systemTheme.modelToDependencies,
     ).parameters.toEqualTypeOf<[ThemeModel]>()
 
     const withLifted = aggregate(gatedChildSubscriptions)
