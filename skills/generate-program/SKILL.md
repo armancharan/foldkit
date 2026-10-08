@@ -161,7 +161,7 @@ If the app uses UI components, **always read the ui-showcase example first** to 
 - `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/message.ts`: how component Messages are structured
 - `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/model.ts`: how component Models are composed
 - `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/update.ts`: how component updates are delegated
-- `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/subscriptions.ts`: which components need Subscriptions lifted into the parent (`DragAndDrop`, `Slider`, `VirtualList`)
+- `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/subscriptions.ts`: which components need Subscriptions lifted into the parent (`DragAndDrop`, `Slider`)
 - `${CLAUDE_SKILL_DIR}/../../examples/ui-showcase/src/ui/toast.ts`: read when using `Toast`. It's unique in that it's parameterized on a payload schema via `Toast.make(PayloadSchema)`, returning a typed module you import from
 
 Directory names under `examples/ui-showcase/src/` have moved before. List the directory rather than trusting these paths blind.
@@ -426,7 +426,7 @@ Record these in the crib and keep them visible while generating:
 - **Route variants stay on `AppRoute` and drop the repeated `Route` suffix.** Write `AppRoute.Home` and `AppRoute.NewLink`, not sibling bindings named `HomeRoute` and `NewLinkRoute`.
 - **Routers are callable for printing**: `homeRouter()` returns `'/'`, `tagFilterRouter({ tag: 'foo' })` returns `'/tag/foo'`. Never hand-construct URLs.
 - **UI components come from `@foldkit/ui`, not from a `Ui` namespace on `foldkit`.** `import { Dialog, Input } from '@foldkit/ui'`, then `Dialog.view(...)`. There is no `Ui` export on the `foldkit` package.
-- **`HttpClient` and `HttpClientRequest` come from `effect/unstable/http`**, not `@effect/platform`. Provide the client to the Command's Effect with `Effect.provide(effect, Http.layer)`, where `Http` is imported from `foldkit`. `@effect/platform-browser` is a different thing, used for `BrowserKeyValueStore` and `BrowserCrypto`.
+- **`HttpClient` and `HttpClientRequest` come from `effect/http`**, not `@effect/platform`. Provide the client to the Command's Effect with `Effect.provide(effect, Http.layer)`, where `Http` is imported from `foldkit`. `@effect/platform-browser` is a different thing, used for `BrowserKeyValueStore` and `BrowserCrypto`.
 - **Use `Update.foldChildInit` for one child init or boot result, and `Update.foldChildInits` when several child results enter one parent Model.** Use `Update.foldChild` for a child update that receives input or `Update.foldChildStep` for a child helper that receives only its Model. The folds lift the child's Commands through `toParentMessage`. Use `Command.mapMessages` directly only for lower-level helpers or route-gated initialization.
 - **Inline a one-use update return type.** Use `Message.match<Update.Return<Model, Message>>` when the matcher is its only use. Create an `UpdateReturn` alias when another matcher, helper, or exported signature reuses the type. The match generic constrains the whole update, so omit a redundant return annotation. Constrain a domain union match inside a handler the same way, through its own `match` or `matchOrElse` generic (`Submission.match<UpdateReturn>(submission, { ... })`); `Match.withReturnType<UpdateReturn>()` is only for Effect `Match` (partial Message matches, shared multi-tag handlers, or unions without their own matcher).
 - **Preserve the plain-return OutMessage guard.** Use `Update.Return<Model, Message>` when an update cannot emit an OutMessage. It prevents a result containing an OutMessage from entering code that would keep only its Model and Commands. A result with no `outMessage` can still be used where `Update.ReturnWithOutMessage<Model, Message, OutMessage>` is expected. The missing field means that update emitted no OutMessage. A hand-written plain-return type must preserve the `outMessage?: never` field.
@@ -488,7 +488,7 @@ Every message must carry meaning. No `NoOp`.
 
 - Define a `Flags` Schema for data the initial Model needs from side effects
 - Define `flags` as an `Effect<Flags>` that computes the values (localStorage reads, current time, etc.)
-- Pass `flags` to `Runtime.run(application, { flags })` for a fresh browser boot. Hydrated applications call `Runtime.hydrate(application, { buildId: import.meta.env.FOLDKIT_BUILD_ID })` and use only the server-encoded Flags payload
+- Pass `flags` to `Runtime.run(application, { flags })` for a fresh browser boot. Hydrated applications call `Runtime.hydrate(application)` and use only the server-encoded Flags payload. `@foldkit/vite-plugin` compiles the shared deployment identity into Foldkit for coordinated client and server builds
 - Pass the result into init. Never perform side effects at module level or inside init directly
 - See the Flags section in [architecture.md](architecture.md) for the full pattern
 
@@ -526,7 +526,7 @@ Every message must carry meaning. No `NoOp`.
 - Name each Command for the effect its `execute` body performs, not the later Model transition caused when update handles its result. A timer that only waits before update starts a dismissal is `WaitBeforeDismissal`, not `DismissAfter`
 - Commands that can't meaningfully fail return `Completed*` Messages named from the Command, payload-carrying ones included: `DetermineStartTime` → `CompletedDetermineStartTime`, not `DeterminedStartTime`
 - Use Foldkit's `Dom` module for DOM operations (`Dom.focus`, `Dom.scrollIntoView`, `Dom.showDialog`, `Dom.lockScroll`, etc.) and Effect built-ins for everything else (`Clock.currentTimeMillis`, `Random.nextIntBetween`, `Effect.sleep(Duration.millis(...))`). For UUIDs, use the `Crypto.Crypto` service's `randomUUIDv4` with a platform Crypto layer. See DOM and Effect Helpers in [architecture.md](architecture.md)
-- For HTTP requests, use `HttpClient` and `HttpClientRequest` from `effect/unstable/http`, and provide the client with `Effect.provide(effect, Http.layer)` where `Http` comes from `foldkit`. See `examples/weather/src/main.ts` for the pattern
+- For HTTP requests, use `HttpClient` and `HttpClientRequest` from `effect/http`, and provide the client with `Effect.provide(effect, Http.layer)` where `Http` comes from `foldkit`. See `examples/weather/src/main.ts` for the pattern
 - Let `Update.foldChildInit`, `Update.foldChildInits`, `Update.foldChild`, or `Update.foldChildStep` re-tag a child Submodel's Commands through `toParentMessage` when applicable. Use `Command.mapMessages` directly only for lower-level helpers or route-gated initialization
 
 ### Form Validation
@@ -621,7 +621,7 @@ For file uploads (resumes, images, attachments):
 - `dependenciesToStream` builds `Stream<Message>` from dependencies
 - Subscriptions auto-start/stop based on Model state. Never manually managed
 - For Subscriptions with no Model dependencies (always active), pass `{}` as the `entry` fields argument and return `{}` from `modelToDependencies`
-- To embed child Subscriptions, use `Subscription.lift(childRecord)<Parent, Parent>({ toChildModel, toParentMessage })`. Add `when` on the parent's lift call to gate on a parent fact the child cannot see (the route a page Submodel sits behind); the parent owns the gate and reads the parent Model, and a closed gate tears the entry's Stream down. `when: parentModel => boolean` gates every entry; `when: { entryName: parentModel => boolean }` gates only the entries it names, so a child never splits its record to suit its parent's gating. To combine multiple records, use `Subscription.aggregate(...records)`, which reads the Model, Message, and any Effect services off the records
+- To embed child Subscriptions, use `Subscription.lift(childRecord)<Parent, Parent>({ read, toParentMessage })`. Its `read` returns `Option<ChildModel>`, matching `Update.foldChild` and `ManagedResource.lift`; `None` stops every child Stream without reading child dependencies. Use `Option.some` for always-present children. Every lifted entry wraps its dependencies in `GatedDependencies`. Add `when` on the parent's lift call to gate on a parent fact the child cannot see (the route a page Submodel sits behind); the parent owns the gate and reads the parent Model, and a closed gate tears the entry's Stream down. `when: parentModel => boolean` gates every entry; `when: { entryName: parentModel => boolean }` adds a condition only to the entries it names; child absence still stops every entry, so a child never splits its record to suit its parent's gating. To combine multiple records, use `Subscription.aggregate(...records)`, which reads the Model, Message, and any Effect services off the records
 
 ### Managed Resources (if stateful runtime handles)
 
@@ -629,7 +629,7 @@ For file uploads (resumes, images, attachments):
 - `modelToMaybeRequirements` returns `Option.some(params)` to acquire (or re-acquire when params change) and `Option.none()` to release. Resources auto-acquire/release on Model state, like Subscriptions
 - For a resource with no params, use `Schema.Option(Schema.Null)` and return `Option.some(null)`
 - Read the service union with `ManagedResource.ServicesOf<typeof managedResources>`
-- To embed a child Submodel's resources, use `ManagedResource.lift(childRecord)<Parent, Parent>({ toChildModel, toParentMessage })` (its `toChildModel` returns `Option<ChildModel>`, so lifted requirements must be `Schema.Option`-wrapped). Combine records with `ManagedResource.aggregate(...records)`, which reads the Model and Message off the records
+- To embed a child Submodel's resources, use `ManagedResource.lift(childRecord)<Parent, Parent>({ read, toParentMessage })` (its `read` returns `Option<ChildModel>`, so lifted requirements must be `Schema.Option`-wrapped). Combine records with `ManagedResource.aggregate(...records)`, which reads the Model and Message off the records
 - App-lifetime handles go in `resources`, not here; there is no `persistent`
 
 ## Phase 4.5: Self-check before verification

@@ -92,6 +92,12 @@ const maybeFilesForSlug = (
     Option.map(entry => entry.files),
   )
 
+const isUnavailableExample = (maybeMeta: Option.Option<ExampleMeta>): boolean =>
+  Option.match(maybeMeta, {
+    onNone: () => false,
+    onSome: meta => meta.livePreview === 'Unavailable',
+  })
+
 const sortedPaths = (
   files: Readonly<Record<string, string>>,
 ): ReadonlyArray<string> => pipe(files, Record.keys, Array.sort(Order.String))
@@ -184,7 +190,7 @@ const monacoUriForPath = (path: string): string => `file:///${path}`
 
 const FOLDKIT_DARK_THEME = 'foldkit-dark'
 
-// NOTE: Hand-port of the docs' `0x96f-dark` Shiki theme to Monaco's
+// NOTE: Hand-port of the docs' `github-dark-default` Shiki theme to Monaco's
 // theme format. Shiki's TextMate scopes don't all have Monaco
 // equivalents (Monaco's grammar tokens are coarser), so a few colors
 // collapse together. Close enough to feel continuous with the rest of
@@ -194,23 +200,23 @@ const defineFoldkitTheme = (monaco: typeof import('monaco-editor')): void => {
     base: 'vs-dark',
     inherit: true,
     rules: [
-      { token: 'comment', foreground: '8A869C' },
-      { token: 'keyword', foreground: 'FF7272' },
-      { token: 'string', foreground: 'BCDF59' },
-      { token: 'string.escape', foreground: 'A093E2' },
-      { token: 'number', foreground: '49CAE4' },
-      { token: 'regexp', foreground: 'BCDF59' },
-      { token: 'type', foreground: '49CAE4' },
-      { token: 'type.identifier', foreground: '49CAE4' },
-      { token: 'identifier', foreground: 'FFCA58' },
-      { token: 'delimiter', foreground: '9E9BAA' },
-      { token: 'tag', foreground: 'BCDF59' },
-      { token: 'attribute.name', foreground: 'FFCA58' },
-      { token: 'attribute.value', foreground: 'BCDF59' },
+      { token: 'comment', foreground: '8B949E' },
+      { token: 'keyword', foreground: 'FF7B72' },
+      { token: 'string', foreground: 'A5D6FF' },
+      { token: 'string.escape', foreground: '79C0FF' },
+      { token: 'number', foreground: '79C0FF' },
+      { token: 'regexp', foreground: '7EE787' },
+      { token: 'type', foreground: 'FFA657' },
+      { token: 'type.identifier', foreground: 'FFA657' },
+      { token: 'identifier', foreground: 'E6EDF3' },
+      { token: 'delimiter', foreground: 'E6EDF3' },
+      { token: 'tag', foreground: '7EE787' },
+      { token: 'attribute.name', foreground: '79C0FF' },
+      { token: 'attribute.value', foreground: 'A5D6FF' },
     ],
     colors: {
-      'editor.background': '#1c1a20',
-      'editor.foreground': '#E0DEE6',
+      'editor.background': '#0d1117',
+      'editor.foreground': '#E6EDF3',
     },
   })
 }
@@ -627,7 +633,7 @@ const FILE_TAB_BUTTON_BASE_CLASS =
 
 const fileTabButtonClassName = clsx(
   FILE_TAB_BUTTON_BASE_CLASS,
-  'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
+  'text-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
   'data-[selected]:bg-gray-200 data-[selected]:dark:bg-gray-800 data-[selected]:text-gray-900 data-[selected]:dark:text-gray-100 hover:cursor-pointer',
 )
 
@@ -672,7 +678,7 @@ const messageView = (
             [heading],
           ),
           ih.div(
-            [ih.Class('text-sm text-gray-600 dark:text-gray-400 mb-6')],
+            [ih.Class('text-sm text-gray-700 dark:text-gray-400 mb-6')],
             [body],
           ),
           backToExampleButton(maybeMeta),
@@ -706,7 +712,7 @@ const bootingPanelView = (heading: string, body: string): Html =>
             [ih.Class('text-base font-semibold text-gray-900 mb-2')],
             [heading],
           ),
-          ih.div([ih.Class('text-sm text-gray-600')], [body]),
+          ih.div([ih.Class('text-sm text-gray-700')], [body]),
         ],
       ),
     ],
@@ -730,7 +736,7 @@ const failurePanelView = (reason: string): Html =>
           ih.div(
             [
               ih.Class(
-                'w-full max-h-64 overflow-auto text-left text-sm text-gray-600 whitespace-pre-wrap break-words',
+                'w-full max-h-64 overflow-auto text-left text-sm text-gray-700 whitespace-pre-wrap break-words',
               ),
             ],
             [reason],
@@ -835,7 +841,7 @@ const tooNarrowMessageView = (): Html =>
             ['Use a wider screen'],
           ),
           ih.div(
-            [ih.Class('text-sm text-gray-600 dark:text-gray-400')],
+            [ih.Class('text-sm text-gray-700 dark:text-gray-400')],
             ['The live editor and preview need more horizontal space.'],
           ),
         ],
@@ -963,6 +969,15 @@ export const view = Submodel.defineView<Model, Message, ViewInputs>(
       maybeMeta,
       maybeFiles,
     }).pipe(
+      Match.when(
+        ({ maybeMeta }) => isUnavailableExample(maybeMeta),
+        () =>
+          messageView(
+            'Playground unavailable',
+            'This example is paused while we update and verify LiveStore compatibility with Effect 4 stable.',
+            maybeMeta,
+          ),
+      ),
       Match.when(
         ({ maybeIsPlaygroundSupported }) =>
           Option.isNone(maybeIsPlaygroundSupported),

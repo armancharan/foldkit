@@ -32,6 +32,7 @@ import {
   coreModelRouter,
   coreMountRouter,
   corePreserveScrollRouter,
+  coreQueryRouter,
   coreRenderRouter,
   coreResourcesRouter,
   coreRuntimeRouter,
@@ -78,9 +79,11 @@ import {
   uiInputRouter,
   uiListboxRouter,
   uiMenuRouter,
+  uiMeterRouter,
   uiNavRouter,
   uiOverviewRouter,
   uiPopoverRouter,
+  uiProgressRouter,
   uiRadioGroupRouter,
   uiSelectRouter,
   uiSelectionSubmodelsRouter,
@@ -281,6 +284,11 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           _tag: 'CoreHttp',
           href: coreHttpRouter(),
           label: 'Http',
+        },
+        {
+          _tag: 'CoreQuery',
+          href: coreQueryRouter(),
+          label: 'Query',
         },
         {
           _tag: 'FieldValidation',
@@ -535,6 +543,11 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           label: 'Menu',
         },
         {
+          _tag: 'UiMeter',
+          href: uiMeterRouter(),
+          label: 'Meter',
+        },
+        {
           _tag: 'UiNav',
           href: uiNavRouter(),
           label: 'Nav',
@@ -543,6 +556,11 @@ export const docsSections: ReadonlyArray<DocsSection> = [
           _tag: 'UiPopover',
           href: uiPopoverRouter(),
           label: 'Popover',
+        },
+        {
+          _tag: 'UiProgress',
+          href: uiProgressRouter(),
+          label: 'Progress',
         },
         {
           _tag: 'UiRadioGroup',

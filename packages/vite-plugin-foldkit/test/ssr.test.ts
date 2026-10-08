@@ -4,19 +4,22 @@ import {
   request as nodeRequest,
 } from 'node:http'
 import { createServer as createNetServer } from 'node:net'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   type CorsOptions,
   DevEnvironment,
   type Logger,
   type Plugin,
   type ResolvedConfig,
+  type ViteDevServer,
   createServer as createViteServer,
   isRunnableDevEnvironment,
 } from 'vite'
 import { createServer as createHostViteServer } from 'vite-host'
 import { describe, expect, it, onTestFinished } from 'vitest'
 
+import { foldkit } from '../src/index.ts'
 import { foldkitSsr } from '../src/ssr.ts'
 
 type RawResponse = Readonly<{
@@ -94,6 +97,15 @@ const collectingLogger = (warnings: Array<string>): Logger => ({
 })
 
 const FIXTURE_ROOT = resolve(import.meta.dirname, 'fixtures/ssr')
+const AUTOMATIC_IDENTITY_FIXTURE_ROOT = resolve(
+  import.meta.dirname,
+  'fixtures/build-config',
+)
+const FOLDKIT_BUILD_TOKEN_URL = `/@fs${resolve(
+  dirname(fileURLToPath(import.meta.resolve('foldkit'))),
+  'buildToken.js',
+)}`
+const AGGREGATE_DEV_SERVER_TEST_TIMEOUT_MS = 20_000
 const findFreePort = () =>
   new Promise<number>((resolvePort, reject) => {
     const probe = createNetServer()
@@ -218,6 +230,8 @@ const nonRunnableSsrPlugin: Plugin = {
 
 const startServer = async (
   options: Readonly<{
+    root?: string
+    clientEntry?: string
     base?: string
     origin?: string
     allowedHosts?: true | ReadonlyArray<string>
@@ -235,7 +249,7 @@ const startServer = async (
   const createServer =
     options.hostVite === true ? createHostServer : createViteServer
   const server = await createServer({
-    root: FIXTURE_ROOT,
+    root: options.root ?? FIXTURE_ROOT,
     ...(options.base === undefined ? {} : { base: options.base }),
     configFile: false,
     logLevel: 'silent',
@@ -250,6 +264,9 @@ const startServer = async (
         : [seedVaryPlugin(options.seedVary)]),
       foldkitSsr({
         serverEntry: '/entry.server.ts',
+        ...(options.clientEntry === undefined
+          ? {}
+          : { clientEntry: options.clientEntry }),
         ...(options.origin === undefined ? {} : { origin: options.origin }),
         ...(options.buildId === undefined ? {} : { buildId: options.buildId }),
         ...(options.quietStandDown === undefined
@@ -273,7 +290,112 @@ const startServer = async (
   return `http://127.0.0.1:${port}`
 }
 
+const startAutomaticIdentityServer = async (): Promise<
+  Readonly<{ origin: string; server: ViteDevServer }>
+> => {
+  const port = await findFreePort()
+  const server = await createViteServer({
+    root: AUTOMATIC_IDENTITY_FIXTURE_ROOT,
+    configFile: false,
+    logLevel: 'silent',
+    plugins: [
+      foldkit({
+        ssr: {
+          serverEntry: '/entry.server.ts',
+          clientEntry: '/entry.client.ts',
+        },
+      }),
+    ],
+    server: {
+      host: '127.0.0.1',
+      port,
+      strictPort: true,
+    },
+  })
+  onTestFinished(() => server.close().catch(() => undefined))
+  await server.listen()
+  return { origin: `http://127.0.0.1:${port}`, server }
+}
+
+describe('code-rendered documents in development', () => {
+  it('serves nested pages with a source entry, custom document, and HMR without an HTML input', async () => {
+    const origin = await startServer({
+      root: resolve(import.meta.dirname, 'fixtures/build-assets'),
+      clientEntry: '/entry.client.ts',
+      base: '/app/',
+      buildId: 'document-dev',
+    })
+    const response = await fetch(`${origin}/app/deep/page?filter=yes`)
+    const html = await response.text()
+    expect(response.status).toBe(200)
+    expect(html).toContain('>/app/deep/page</main>')
+    expect(html).toContain('name="document-owner" content="server-entry"')
+    expect(html).toContain('src="/app/entry.client.ts"')
+    expect(html).toContain('/app/@vite/client')
+    expect((await fetch(`${origin}/app/entry.client.ts`)).status).toBe(200)
+
+    const head = await fetch(`${origin}/app/deep/page`, { method: 'HEAD' })
+    expect(head.status).toBe(200)
+    expect(await head.text()).toBe('')
+  })
+
+  it('reports a missing document renderer when a script entry is configured', async () => {
+    const origin = await startServer({ clientEntry: '/entry.client.ts' })
+    const response = await fetch(`${origin}/`)
+    expect(response.status).toBe(500)
+    expect(await response.text()).toContain('must export renderDocument')
+  })
+
+  it('rejects a client entry that is not root-relative', async () => {
+    await expect(
+      startServer({ clientEntry: 'entry.client.ts' }),
+    ).rejects.toThrow(/clientEntry must be a root-relative browser script URL/)
+  })
+
+  for (const base of ['', './']) {
+    it(`refuses relative base ${JSON.stringify(base)} in document mode`, async () => {
+      await expect(
+        startServer({ clientEntry: '/entry.client.ts', base }),
+      ).rejects.toThrow(/require an absolute URL or root-relative base/)
+    })
+  }
+})
+
+const automaticIdentityFrom = async (
+  running: Readonly<{ origin: string; server: ViteDevServer }>,
+): Promise<string> => {
+  const response = await fetch(`${running.origin}/`)
+  expect(response.status).toBe(200)
+  const html = await response.text()
+  const buildId = /data-foldkit-build="([^"]+)"/.exec(html)?.[1]
+  expect(buildId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  )
+
+  const transformedClientToken =
+    await running.server.environments.client.transformRequest(
+      FOLDKIT_BUILD_TOKEN_URL,
+    )
+  expect(transformedClientToken?.code).toContain(JSON.stringify(buildId))
+
+  return buildId ?? ''
+}
+
 describe('foldkitSsr', () => {
+  it(
+    'compiles one fresh identity into Foldkit for each aggregate dev server',
+    async () => {
+      const first = await startAutomaticIdentityServer()
+      const second = await startAutomaticIdentityServer()
+
+      const firstBuildId = await automaticIdentityFrom(first)
+      const secondBuildId = await automaticIdentityFrom(second)
+
+      expect(secondBuildId).not.toBe(firstBuildId)
+    },
+    AGGREGATE_DEV_SERVER_TEST_TIMEOUT_MS,
+  )
+
   it('injects Rendered results and preserves their HTTP metadata', async () => {
     const origin = await startServer()
     const response = await fetch(`${origin}/rendered`, {

@@ -23,6 +23,7 @@
     "stopwatch-example",
     "weather-example",
     "api-cache-example",
+    "api-cache-query-example",
     "routing-example",
     "route-transitions-example",
     "counter-example",
@@ -52,7 +53,6 @@
     "interrupting-commands-example",
     "view-transitions-example",
     "ssr-example",
-    "ssg-example",
-    "livestore-example"
+    "ssg-example"
   ]
 }

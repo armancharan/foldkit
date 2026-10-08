@@ -29,7 +29,11 @@ import {
 } from '../src/page/apiReference/domain'
 import { TypeDocJson } from '../src/page/apiReference/typedoc'
 import { BLOG_DESCRIPTION, BLOG_RSS_PATH } from '../src/page/blog/meta'
-import { exampleSlugs, examples } from '../src/page/example/meta'
+import {
+  exampleSlugs,
+  examples,
+  runnableExampleSlugs,
+} from '../src/page/example/meta'
 import {
   AppRoute,
   SITE_URL,
@@ -100,6 +104,7 @@ export const STATIC_ROUTES: ReadonlyArray<AppRoute> = [
   AppRoute.CoreRender(),
   AppRoute.CoreFile(),
   AppRoute.CoreHttp(),
+  AppRoute.CoreQuery(),
   AppRoute.CoreCanvas(),
   AppRoute.CoreRuntime(),
   AppRoute.CoreServerRendering(),
@@ -131,6 +136,8 @@ export const STATIC_ROUTES: ReadonlyArray<AppRoute> = [
   AppRoute.UiRadioGroup(),
   AppRoute.UiSelect(),
   AppRoute.UiSlider(),
+  AppRoute.UiMeter(),
+  AppRoute.UiProgress(),
   AppRoute.UiSwitch(),
   AppRoute.UiButton(),
   AppRoute.UiCalendar(),
@@ -160,10 +167,9 @@ export const STATIC_ROUTES: ReadonlyArray<AppRoute> = [
 ]
 
 const PLAYGROUND_ROUTES: ReadonlyArray<AppRoute> = Array.map(
-  exampleSlugs,
+  runnableExampleSlugs,
   exampleSlug => AppRoute.Playground({ exampleSlug }),
 )
-
 export const INDEX_OUTPUT_PATH = 'index.html'
 
 export const routeToOutputPath = (route: AppRoute): string => {

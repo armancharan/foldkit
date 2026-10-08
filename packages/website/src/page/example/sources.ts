@@ -24,6 +24,7 @@ const loadersBySlug: Readonly<Record<string, SourceLoader | undefined>> = {
   kanban: () => import('virtual:example-sources/kanban'),
   weather: () => import('virtual:example-sources/weather'),
   'api-cache': () => import('virtual:example-sources/api-cache'),
+  'api-cache-query': () => import('virtual:example-sources/api-cache-query'),
   charting: () => import('virtual:example-sources/charting'),
   routing: () => import('virtual:example-sources/routing'),
   'route-transitions': () =>
@@ -51,7 +52,6 @@ const loadersBySlug: Readonly<Record<string, SourceLoader | undefined>> = {
   ssr: () => import('virtual:example-sources/ssr'),
   'ui-showcase': () => import('virtual:example-sources/ui-showcase'),
   'personal-blog': () => import('virtual:example-sources/personal-blog'),
-  livestore: () => import('virtual:example-sources/livestore'),
 }
 
 export const loadSourcesForSlug = async (

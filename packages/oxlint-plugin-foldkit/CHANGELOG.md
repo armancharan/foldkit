@@ -1,5 +1,29 @@
 # @foldkit/oxlint-plugin
 
+## 0.15.3
+
+### Patch Changes
+
+- [#1608](https://github.com/foldkit/foldkit/pull/1608) [`9d0f289`](https://github.com/foldkit/foldkit/commit/9d0f28976e5e1edd19db8118da5b43ad7c444adc) Thanks [@devinjameson](https://github.com/devinjameson)! - Recognize direct-field `Update.foldChildAt` boundaries and empty curried `toParentOutMessage` mappers. Direct-field inference requires `writeAt` to replace that field, avoiding false positives for keyed collection updates.
+
+- [#1616](https://github.com/foldkit/foldkit/pull/1616) [`5f7e247`](https://github.com/foldkit/foldkit/commit/5f7e2470d7037b97f768a5cc478e2a0d920e5b28) Thanks [@devinjameson](https://github.com/devinjameson)! - Point the stream event cancellation rule's guidance to `Dom.streamFromEventFilterMapPreventDefault`.
+
+## 0.15.2
+
+### Patch Changes
+
+- [#1425](https://github.com/foldkit/foldkit/pull/1425) [`9d701af`](https://github.com/foldkit/foldkit/commit/9d701af6a75161962a9600422743d7531c0e4828) Thanks [@rodygosset](https://github.com/rodygosset)! - `foldkit/got-prefix-requires-submodel-payload` now recognizes the Message Schema of a Query defined beside its parent Message union. Previously, `GotPostsMessage: { message: postsQuery.Message }` was reported even when `postsQuery` came from `Query.define`.
+
+  Unrelated local objects that happen to expose a `.Message` property still do not count as Submodels, so the rule continues to reject misleading `Got*` Messages.
+
+- [#1569](https://github.com/foldkit/foldkit/pull/1569) [`a7b74ae`](https://github.com/foldkit/foldkit/commit/a7b74aec40de4d8d6adf77836dbe8ce2e82f7cc9) Thanks [@birbprophet](https://github.com/birbprophet)! - Accept `effect-oxlint` 0.4 alongside 0.3. Projects that also use `@mpsuesser/oxlint-plugin-effect` 0.6, which depends on `effect-oxlint` 0.4.0, now install a single copy instead of two.
+
+## 0.15.1
+
+### Patch Changes
+
+- [#1467](https://github.com/foldkit/foldkit/pull/1467) [`1a3dd68`](https://github.com/foldkit/foldkit/commit/1a3dd68616dcc00e8070f817f84510e69eeca24a) Thanks [@devinjameson](https://github.com/devinjameson)! - Upgrade compatible runtime, build, and test dependencies across the workspace.
+
 ## 0.15.0
 
 ### Minor Changes

@@ -56,6 +56,7 @@ export const AppRoute = defineRouteUnion({
   CoreRender: {},
   CoreFile: {},
   CoreHttp: {},
+  CoreQuery: {},
   CoreCanvas: {},
   CoreRuntime: {},
   CoreServerRendering: {},
@@ -91,6 +92,8 @@ export const AppRoute = defineRouteUnion({
   UiRadioGroup: {},
   UiSelect: {},
   UiSlider: {},
+  UiMeter: {},
+  UiProgress: {},
   UiSwitch: {},
   UiCombobox: {},
   UiInput: {},
@@ -158,6 +161,7 @@ export const DocsRoute = AppRoute.subset([
   'CoreRender',
   'CoreFile',
   'CoreHttp',
+  'CoreQuery',
   'CoreCanvas',
   'CoreRuntime',
   'CoreServerRendering',
@@ -193,6 +197,8 @@ export const DocsRoute = AppRoute.subset([
   'UiRadioGroup',
   'UiSelect',
   'UiSlider',
+  'UiMeter',
+  'UiProgress',
   'UiSwitch',
   'UiCombobox',
   'UiInput',
@@ -395,6 +401,7 @@ export const coreDomRouter = core('dom', AppRoute.CoreDom)
 export const coreRenderRouter = core('render', AppRoute.CoreRender)
 export const coreFileRouter = core('file', AppRoute.CoreFile)
 export const coreHttpRouter = core('http', AppRoute.CoreHttp)
+export const coreQueryRouter = core('query', AppRoute.CoreQuery)
 export const coreCanvasRouter = core('canvas', AppRoute.CoreCanvas)
 export const coreRuntimeRouter = core('runtime', AppRoute.CoreRuntime)
 export const coreServerRenderingRouter = core(
@@ -464,6 +471,8 @@ export const uiListboxRouter = ui('listbox', AppRoute.UiListbox)
 export const uiRadioGroupRouter = ui('radio-group', AppRoute.UiRadioGroup)
 export const uiSelectRouter = ui('select', AppRoute.UiSelect)
 export const uiSliderRouter = ui('slider', AppRoute.UiSlider)
+export const uiMeterRouter = ui('meter', AppRoute.UiMeter)
+export const uiProgressRouter = ui('progress', AppRoute.UiProgress)
 export const uiSwitchRouter = ui('switch', AppRoute.UiSwitch)
 export const uiComboboxRouter = ui('combobox', AppRoute.UiCombobox)
 export const uiInputRouter = ui('input', AppRoute.UiInput)
@@ -535,6 +544,7 @@ const coreParser = oneOf(
   coreRenderRouter,
   coreFileRouter,
   coreHttpRouter,
+  coreQueryRouter,
   coreCanvasRouter,
   coreRuntimeRouter,
   coreServerRenderingRouter,
@@ -588,6 +598,8 @@ const uiParser = oneOf(
   uiRadioGroupRouter,
   uiSelectRouter,
   uiSliderRouter,
+  uiMeterRouter,
+  uiProgressRouter,
   uiSwitchRouter,
   uiComboboxRouter,
   uiInputRouter,
@@ -714,6 +726,7 @@ export const routeToUrlPath = (route: AppRoute): string =>
     CoreRender: () => coreRenderRouter(),
     CoreFile: () => coreFileRouter(),
     CoreHttp: () => coreHttpRouter(),
+    CoreQuery: () => coreQueryRouter(),
     CoreCanvas: () => coreCanvasRouter(),
     CoreRuntime: () => coreRuntimeRouter(),
     CoreServerRendering: () => coreServerRenderingRouter(),
@@ -746,6 +759,8 @@ export const routeToUrlPath = (route: AppRoute): string =>
     UiRadioGroup: () => uiRadioGroupRouter(),
     UiSelect: () => uiSelectRouter(),
     UiSlider: () => uiSliderRouter(),
+    UiMeter: () => uiMeterRouter(),
+    UiProgress: () => uiProgressRouter(),
     UiSwitch: () => uiSwitchRouter(),
     UiButton: () => uiButtonRouter(),
     UiCalendar: () => uiCalendarRouter(),

@@ -41,11 +41,10 @@ import {
   type IncomingMessage,
   createServer as createHttpServer,
 } from 'node:http'
-import { createRequire } from 'node:module'
 import type { AddressInfo } from 'node:net'
-import { resolve } from 'node:path'
 import type { Duplex } from 'node:stream'
 import type {
+  EnvironmentOptions,
   HttpServer,
   Plugin,
   ResolvedConfig,
@@ -61,6 +60,7 @@ import * as NodePath from '@effect/platform-node/NodePath'
 import { type FoldkitBuildOptions, foldkitBuild } from './build.js'
 import { foldkitBuildToken } from './buildToken.js'
 import { devToolsOverlayPlugin } from './devToolsOverlay.js'
+import { crawlFoldkitPackages } from './foldkitPackages.js'
 import { publishRelayRecord, retireRelayRecord } from './relayRegistry.js'
 import { type FoldkitSsrOptions, foldkitSsr } from './ssr.js'
 import { foldkitViewIdentity } from './viewIdentity.js'
@@ -102,53 +102,62 @@ export type FoldkitPluginOptions = Readonly<{
    * `ssr.serverEntry`. When `undefined` (the default), the dev server
    * serves the client entry only.
    */
-  ssr?: Omit<FoldkitSsrOptions, 'buildId' | 'quietStandDown'> &
-    Readonly<{
-      /**
-       * Build a Web `fetch` handler alongside the browser build, and generate
-       * static HTML from the server entry, inside this project's own
-       * `vite build`. The handler is the server bundle: Node and Workers
-       * both run it. `true` builds it with the default output directories
-       * and generates nothing.
-       *
-       * When this is absent, `vite build` builds the browser bundle only.
-       */
-      build?: boolean | FoldkitBuildOptions
-    }>
+  ssr?: Omit<
+    FoldkitSsrOptions,
+    'buildId' | 'quietStandDown' | 'clientEntry' | 'containerId'
+  > &
+    (
+      | Readonly<{
+          /** Root-relative browser script for the server entry's code-rendered document. */
+          clientEntry: string
+          containerId?: never
+          /**
+           * Build a Web `fetch` handler alongside the browser build, and generate
+           * static HTML from the server entry, inside this project's own
+           * `vite build`. The handler is the server bundle: Node and Workers
+           * both run it. `true` builds it with the default output directories
+           * and generates nothing.
+           *
+           * When this is absent, `vite build` builds the browser bundle only.
+           */
+          build?: boolean | Omit<FoldkitBuildOptions, 'clientEntry'>
+        }>
+      | Readonly<{
+          /** Use a custom template-based development and build pipeline. */
+          clientEntry?: never
+          containerId?: string
+          build?: false
+        }>
+    )
   /**
-   * The deployment this build belongs to, compiled into application code as
-   * `import.meta.env.FOLDKIT_BUILD_ID` for the entries to pass to
-   * `renderToString` and `Runtime.hydrate`. Hydration compares it against the id
-   * the server stamped and refuses a page from another deployment rather than
-   * adopting it: startup stops and the page is contained, with the document's
-   * body marked `inert`.
+   * An explicit identity for the deployment this build belongs to. Foldkit
+   * normally generates an opaque identity when one Vite app build coordinates
+   * the client and server artifacts, then compiles it into the framework in
+   * both. Hydration compares that value against the id the server stamped and
+   * refuses a page from another deployment before adopting its DOM.
    *
-   * Defaults to the `FOLDKIT_BUILD_ID` environment variable. Use a value the
-   * deployment already has, such as a commit or a release tag, and give the
-   * client build and the server build the same one. It is published in the
-   * page, so it must not be a secret.
+   * Set this when the client and server are built separately, or when the id
+   * should name a deployment in another system. The `FOLDKIT_BUILD_ID`
+   * environment variable supplies the same override when this option is
+   * absent. Give every artifact the same value. It is published in the page,
+   * so it must not be a secret.
    *
-   * Whatever supplies it has to answer with the same value every time it is
-   * asked, because Vite reads a config file once per environment it builds. A
-   * config that computes a fresh value on each read — `randomUUID()`, a
-   * timestamp — gives the browser bundle and the server bundle different ids
-   * within one build, and every page of that deployment is then refused at
-   * hydration. Read it from the environment, or store a generated fallback
-   * back into the environment so later reads resolve the same id.
+   * Reusing an override across deployments makes stale pages appear current.
+   * Use a value that changes whenever the deployment's rendering inputs can
+   * change.
    */
   buildId?: string
 }>
 
-// NOTE: Vite's dep optimizer scans the consumer's source for `effect`
-// imports and pre-bundles only those exports into a single `effect.js`
-// blob. It does not follow imports through workspace/node_modules
-// packages, so any `effect` namespace foldkit's compiled dist references
-// that the consumer does not mention by name is missing from the blob
-// and crashes at runtime in dev. The list below covers every top-level
-// namespace foldkit imports from bare `'effect'`. Over-inclusion is
-// harmless; under-inclusion is the bug. Kept in sync with foldkit's
-// source by `scripts/check-effect-prebundle.ts` (runs in `pnpm check`).
-const FORCE_INCLUDED_EFFECT_NAMESPACES: ReadonlyArray<string> = [
+// NOTE: Vite does not scan imports through `foldkit` because the plugin
+// excludes the package from optimization in every environment. A consumer can
+// import only Effect subpaths while Foldkit's compiled distribution imports the
+// bare barrel, so include both the barrel and every top-level namespace Foldkit
+// imports. This keeps them in one optimized dependency graph. Over-inclusion is
+// harmless; under-inclusion is the bug. `scripts/check-effect-prebundle.ts`
+// keeps the entries in sync with Foldkit's source and runs in `pnpm check`.
+const FORCE_INCLUDED_EFFECT_ENTRIES: ReadonlyArray<string> = [
+  'effect',
   'effect/Array',
   'effect/Boolean',
   'effect/Cause',
@@ -176,6 +185,7 @@ const FORCE_INCLUDED_EFFECT_NAMESPACES: ReadonlyArray<string> = [
   'effect/PubSub',
   'effect/Queue',
   'effect/Record',
+  'effect/Redacted',
   'effect/Ref',
   'effect/Result',
   'effect/Runtime',
@@ -192,38 +202,23 @@ const FORCE_INCLUDED_EFFECT_NAMESPACES: ReadonlyArray<string> = [
   'effect/Types',
 ]
 
-// NOTE: a duplicate `foldkit` instance is its own hazard. If a bundler
-// resolves `foldkit` (or a foldkit-consuming package like `@foldkit/ui`) to
-// more than one copy, the copies get distinct Schema and tagged-message
-// identities (decode and tag matching fail across the boundary) and separate
-// module-level singleton state. `resolve.dedupe` (below) collapses every
-// installed Foldkit package to one resolved copy.
-const FOLDKIT_SINGLETON_PACKAGES: ReadonlyArray<string> = [
-  'foldkit',
-  '@foldkit/ui',
-  '@foldkit/devtools',
-]
+// NOTE: Adding includes to an environment whose optimizer is otherwise disabled
+// turns on Vite's explicit optimizer, which would pre-bundle Effect in Vite's
+// default Node `ssr` environment.
+const shouldForceEffectEntries = (
+  name: string,
+  config: EnvironmentOptions,
+): boolean => {
+  const consumer = config.consumer ?? (name === 'client' ? 'client' : 'server')
+  const isClientEnvironment = consumer === 'client'
+  const isDiscoveryEnabled = config.optimizeDeps?.noDiscovery === false
+  const isExplicitOptimizationEnabled = Array.isArrayNonEmpty(
+    config.optimizeDeps?.include ?? [],
+  )
 
-// NOTE: `@foldkit/ui` and `@foldkit/devtools` are optional, so dedupe only
-// the ones the consumer installed. An installed ESM package resolves to
-// ERR_PACKAGE_PATH_NOT_EXPORTED rather than succeeding, so a missing package
-// is signalled only by MODULE_NOT_FOUND.
-const resolveInstalledFoldkitPackages = (root: string): Array<string> => {
-  // NOTE: `root` (Vite's `config.root`) can be relative at config-hook time,
-  // and createRequire requires an absolute path; `resolve` normalizes it.
-  const requireFromRoot = createRequire(resolve(root, 'noop.js'))
-  return Array.filter(FOLDKIT_SINGLETON_PACKAGES, packageName => {
-    try {
-      requireFromRoot.resolve(packageName)
-      return true
-    } catch (error) {
-      return !(
-        error instanceof Error &&
-        Predicate.hasProperty(error, 'code') &&
-        error.code === 'MODULE_NOT_FOUND'
-      )
-    }
-  })
+  return (
+    isClientEnvironment || isDiscoveryEnabled || isExplicitOptimizationEnabled
+  )
 }
 
 // EVENTS
@@ -1069,31 +1064,6 @@ const main = (
  * an array; Vite flattens nested plugin arrays, so `plugins: [foldkit()]`
  * keeps working.
  */
-// The container is named once, on `ssr`, and reaches both the dev host and the
-// build from there. A `build.prerender` that names its own wins, so a project
-// that needs them to differ still can.
-const withContainerId = (
-  build: FoldkitBuildOptions | true,
-  containerId: string | undefined,
-): FoldkitBuildOptions => {
-  const options: FoldkitBuildOptions = build === true ? {} : build
-  if (containerId === undefined) {
-    return options
-  }
-  const withContainer: FoldkitBuildOptions = { ...options, containerId }
-  if (options.prerender === undefined) {
-    return withContainer
-  }
-  const prerender = options.prerender === true ? {} : options.prerender
-  if (prerender === false) {
-    return withContainer
-  }
-  return {
-    ...withContainer,
-    prerender: { containerId, ...prerender },
-  }
-}
-
 const relayRegistryLayer = Layer.mergeAll(
   NodeFileSystem.layer,
   NodePath.layer,
@@ -1124,16 +1094,16 @@ export const foldkit = (options: FoldkitPluginOptions = {}): Array<Plugin> => {
   const reloadPlugin: Plugin = {
     name: 'foldkit',
     apply: 'serve',
-    config: userConfig => ({
-      optimizeDeps: {
-        include: [...FORCE_INCLUDED_EFFECT_NAMESPACES],
-      },
-      resolve: {
-        dedupe: resolveInstalledFoldkitPackages(
-          userConfig.root ?? process.cwd(),
-        ),
-      },
-    }),
+    // NOTE: The `post` order runs this hook after every default-order
+    // `configEnvironment` hook, so the predicate sees discovery or includes
+    // that another plugin turns on there.
+    configEnvironment: {
+      order: 'post',
+      handler: (name, config) =>
+        shouldForceEffectEntries(name, config)
+          ? { optimizeDeps: { include: [...FORCE_INCLUDED_EFFECT_ENTRIES] } }
+          : undefined,
+    },
     configureServer: server => {
       const events = Effect.runSync(Queue.unbounded<Event>())
       // NOTE: The default ConfigProvider snapshots the environment. Create a
@@ -1173,8 +1143,42 @@ export const foldkit = (options: FoldkitPluginOptions = {}): Array<Plugin> => {
     },
   }
 
+  const resolutionPlugin: Plugin = {
+    name: 'foldkit:resolution',
+    config: async (userConfig, { command }) => {
+      const foldkitPackages = await crawlFoldkitPackages(
+        userConfig.root ?? process.cwd(),
+        command === 'build',
+        userConfig,
+      )
+
+      return {
+        resolve: {
+          dedupe: foldkitPackages.dedupe,
+          noExternal: foldkitPackages.noExternal,
+        },
+        ssr: {
+          noExternal: foldkitPackages.noExternal,
+        },
+        environments: {
+          ssr: {
+            resolve: {
+              noExternal: foldkitPackages.noExternal,
+            },
+          },
+        },
+      }
+    },
+    configEnvironment: () => ({
+      optimizeDeps: {
+        exclude: ['foldkit'],
+      },
+    }),
+  }
+
   const shared = [
-    foldkitBuildToken(options.buildId),
+    resolutionPlugin,
+    ...foldkitBuildToken(options.buildId),
     foldkitViewIdentity(),
     devToolsOverlayPlugin(),
     reloadPlugin,
@@ -1185,6 +1189,11 @@ export const foldkit = (options: FoldkitPluginOptions = {}): Array<Plugin> => {
   }
 
   const { build, ...ssr } = options.ssr
+  if (ssr.clientEntry !== undefined && ssr.containerId !== undefined) {
+    throw new Error(
+      '[foldkit] containerId belongs to an HTML template. A clientEntry build takes its complete document from renderDocument instead.',
+    )
+  }
   const servePages = foldkitSsr({
     ...ssr,
     ...(options.buildId === undefined ? {} : { buildId: options.buildId }),
@@ -1195,9 +1204,18 @@ export const foldkit = (options: FoldkitPluginOptions = {}): Array<Plugin> => {
     return [...shared, servePages]
   }
 
+  if (ssr.clientEntry === undefined) {
+    throw new Error(
+      '[foldkit] ssr.build requires ssr.clientEntry to name the browser script and the server entry to export renderDocument.',
+    )
+  }
+
   return [
     ...shared,
     servePages,
-    foldkitBuild(ssr.serverEntry, withContainerId(build, ssr.containerId)),
+    foldkitBuild(ssr.serverEntry, {
+      ...(build === true ? {} : build),
+      clientEntry: ssr.clientEntry,
+    }),
   ]
 }

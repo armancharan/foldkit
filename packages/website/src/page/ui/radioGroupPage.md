@@ -22,7 +22,7 @@ Pass the bundle's `update` to `Update.foldChild`, and fold `Selected` with the b
 
 ::Demo{name="vertical"}
 
-::Snippet{name="uiRadioGroupBasic" label="radio group example"}
+::Snippet{name="uiRadioGroupBasic" label="Radio group"}
 
 ### Horizontal
 
