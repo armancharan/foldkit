@@ -720,7 +720,7 @@ export const makeRenderer = <Model, Message>({
     // requestAnimationFrame callback. Messages arriving between frames mark
     // at most one pending frame; the callback renders once with the latest
     // model. A Message dispatched from an animation-frame callback, such as
-    // a Subscription.animationFrame tick, is already in the frame about to
+    // a Subscription.animationFrameEntry tick, is already in the frame about to
     // paint. Requesting another frame from there defers the render, and the
     // next tick lands first and folds into that pending render, so the view
     // runs on every other frame. That tick renders in a microtask before

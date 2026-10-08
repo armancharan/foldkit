@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { __htmlBuilder } from '../html/index.js'
 import { defineMessageUnion } from '../message/index.js'
 import { modifyFields } from '../struct/index.js'
-import { animationFrame } from '../subscription/animationFrame.js'
+import { animationFrameEntry } from '../subscription/animationFrame.js'
 import { make } from '../subscription/subscription.js'
 import type * as Update from '../update/index.js'
 import { provideBrowserScheduler } from './browserScheduler.js'
@@ -138,7 +138,7 @@ describe('animation frame rendering', () => {
     let viewCount = 0
 
     const subscriptions = make<FrameModel, FrameMessage>()(() => ({
-      frame: animationFrame({
+      frame: animationFrameEntry({
         isActive: () => true,
         toMessage: deltaTime => FrameMessage.Ticked({ deltaTime }),
       }),
