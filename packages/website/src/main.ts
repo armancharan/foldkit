@@ -61,6 +61,7 @@ import {
   SidebarStateJsonString,
 } from './sidebarStorage'
 import * as SnippetCopy from './snippetCopy'
+import * as SnippetDisclosure from './snippetDisclosure'
 import * as Subscriptions from './subscription'
 import { ThemeSelector } from './view'
 
@@ -222,6 +223,7 @@ export const init: Runtime.RoutingApplicationInit<
   )
   const searchInit = Search.init()
   const snippetCopyInit = SnippetCopy.init()
+  const snippetDisclosureInit = SnippetDisclosure.init()
   const coreSubmodelPageInit = Core.SubmodelPage.init()
 
   const maybeInitialActiveSectionKey = findActiveSectionKey(
@@ -254,6 +256,7 @@ export const init: Runtime.RoutingApplicationInit<
         url,
         deployment: flags.deployment,
         snippetCopy: snippetCopyInit.model,
+        snippetDisclosure: snippetDisclosureInit.model,
         maybeGitHubStarCount: Option.fromNullishOr(githubStarCount),
         currentYear: flags.currentYear,
         mobileMenuDialog: Dialog.init({ id: 'mobile-menu' }),
@@ -423,6 +426,16 @@ const foldSnippetCopy = Update.foldChild({
   write: (model, nextSnippetCopy) =>
     modifyFields(model, { snippetCopy: () => nextSnippetCopy }),
   toParentMessage: message => Message.GotSnippetCopyMessage({ message }),
+})
+
+const foldSnippetDisclosure = Update.foldChild({
+  update: SnippetDisclosure.update,
+  read: (model: Model) => Option.some(model.snippetDisclosure),
+  write: (model, nextSnippetDisclosure) =>
+    modifyFields(model, {
+      snippetDisclosure: () => nextSnippetDisclosure,
+    }),
+  toParentMessage: message => Message.GotSnippetDisclosureMessage({ message }),
 })
 
 const foldCoreSubmodelPage = Update.foldChild({
@@ -723,6 +736,9 @@ export const update = (model: Model, message: Message) =>
       foldMobileMenuDialog(model, message),
 
     GotSnippetCopyMessage: ({ message }) => foldSnippetCopy(model, message),
+
+    GotSnippetDisclosureMessage: ({ message }) =>
+      foldSnippetDisclosure(model, message),
 
     GotCoreSubmodelPageMessage: ({ message }) =>
       foldCoreSubmodelPage(model, message),
@@ -1026,9 +1042,8 @@ export const LoadPlayground = Command.define('LoadPlayground', {
 
 const homeSubscriptions = Subscription.lift(Home.subscriptions)<Model, Message>(
   {
-    toChildModel: model => Option.getOrThrow(model.maybeHome),
+    read: model => model.maybeHome,
     toParentMessage: toGotHomeMessage,
-    when: model => Option.isSome(model.maybeHome),
   },
 )
 
@@ -1036,7 +1051,7 @@ const uiPagesSubscriptions = Subscription.lift(Ui.subscriptions)<
   Model,
   Message
 >({
-  toChildModel: model => model.uiPages,
+  read: model => Option.some(model.uiPages),
   toParentMessage: message => Message.GotUiPageMessage({ message }),
 })
 
@@ -1054,7 +1069,7 @@ export const subscriptions = Subscription.aggregate(
 const playgroundManagedResources = ManagedResource.lift(
   Playground.managedResources,
 )<Model, Message>({
-  toChildModel: model =>
+  read: model =>
     Option.filter(model.playground, () =>
       Option.contains(model.maybeIsPlaygroundSupported, true),
     ),
@@ -1065,7 +1080,7 @@ const homeManagedResources = ManagedResource.lift(Home.managedResources)<
   Model,
   Message
 >({
-  toChildModel: model => model.maybeHome,
+  read: model => model.maybeHome,
   toParentMessage: toGotHomeMessage,
 })
 
