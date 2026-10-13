@@ -79,7 +79,7 @@ export const bindValueOutMessageMatch = <OutMessage extends TaggedOutMessage>(
     }
 
     if (second === undefined) {
-      throw new Error('OutMessage.match needs a handler for every variant')
+      throw new Error('OutMessage.match expected the variant handlers')
     }
 
     return match(first, second)
