@@ -42,10 +42,48 @@ export type ValueOutMessageMatch<OutMessage extends TaggedOutMessage> = {
   ): Output
 }
 
-/** Retypes a module-level `OutMessage.match` so its handlers see one bundle's
- *  `Value`. The runtime function is unchanged. */
+type DirectMatch<OutMessage extends TaggedOutMessage> = <Output>(
+  outMessage: OutMessage,
+  cases: MatchCases<OutMessage, Output>,
+) => Output
+
+const isOutMessage = <OutMessage extends TaggedOutMessage>(
+  value: OutMessage | MatchCases<OutMessage, unknown>,
+): value is OutMessage => '_tag' in value
+
+/** Returns a `match` whose handlers see one bundle's `Value`. `match` is the
+ *  module-level `OutMessage.match`; each call is forwarded to it. */
 export const bindValueOutMessageMatch = <OutMessage extends TaggedOutMessage>(
-  match: unknown,
-): ValueOutMessageMatch<OutMessage> =>
-  /* eslint-disable-next-line @typescript-eslint/consistent-type-assertions */
-  match as unknown as ValueOutMessageMatch<OutMessage>
+  match: DirectMatch<OutMessage>,
+): ValueOutMessageMatch<OutMessage> => {
+  function bound<const Cases extends MatchCases<OutMessage, unknown>>(
+    outMessage: OutMessage,
+    cases: Cases & ValidateMatchCases<OutMessage, Cases>,
+  ): MatchCaseReturns<Cases>
+  function bound<const Cases extends MatchCases<OutMessage, unknown>>(
+    cases: Cases & ValidateMatchCases<OutMessage, Cases>,
+  ): (outMessage: OutMessage) => MatchCaseReturns<Cases>
+  function bound<Output>(
+    cases: MatchCases<OutMessage, Output>,
+  ): (outMessage: OutMessage) => Output
+  function bound<Output>(
+    outMessage: OutMessage,
+    cases: MatchCases<OutMessage, Output>,
+  ): Output
+  function bound(
+    first: OutMessage | MatchCases<OutMessage, unknown>,
+    second?: MatchCases<OutMessage, unknown>,
+  ): unknown {
+    if (!isOutMessage(first)) {
+      return (outMessage: OutMessage) => match(outMessage, first)
+    }
+
+    if (second === undefined) {
+      throw new Error('OutMessage.match needs a handler for every variant')
+    }
+
+    return match(first, second)
+  }
+
+  return bound
+}

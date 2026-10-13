@@ -44,8 +44,6 @@ describe('bundle OutMessage.match', () => {
     )
     const outMessage = themeUpdate.outMessage
 
-    expect(ThemeRadioGroup.OutMessage.match).toBe(OutMessage.match)
-
     if (outMessage === undefined) {
       throw new Error('SelectedOption produced no OutMessage')
     }
@@ -57,7 +55,13 @@ describe('bundle OutMessage.match', () => {
       Selected: ({ value }) => value,
     })
 
+    const fromModule = OutMessage.match(outMessage, {
+      Selected: ({ value }) => value,
+    })
+
     expect(theme).toBe('Light')
+    expect(fromModule).toBe(theme)
+    expect(foldTheme(outMessage)).toBe(theme)
     expectTypeOf(theme).toEqualTypeOf<Theme>()
     expectTypeOf(foldTheme).toEqualTypeOf<
       (outMessage: RadioGroupOutMessage<Theme>) => Theme
