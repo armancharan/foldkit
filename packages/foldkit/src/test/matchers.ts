@@ -1,10 +1,31 @@
 import { Array, Function, Option, Record, Result, String, pipe } from 'effect'
 
 import { serializedStylePropertyName } from '../domReflection.js'
+import type { Hooks } from '../snabbdom/hooks.js'
 import type { VNode } from '../vdom.js'
 import { attr, isHidden, textContent } from './query.js'
 
 type MatcherContext = Readonly<{ isNot: boolean }>
+
+type MatcherResult = Readonly<{
+  pass: boolean
+  message: () => string
+}>
+
+const isHookName = (name: string): name is keyof Hooks =>
+  name === 'pre' ||
+  name === 'init' ||
+  name === 'create' ||
+  name === 'insert' ||
+  name === 'prepatch' ||
+  name === 'update' ||
+  name === 'postpatch' ||
+  name === 'destroy' ||
+  name === 'remove' ||
+  name === 'post'
+
+const hasHook = (hooks: Hooks, name: string): boolean =>
+  isHookName(name) && hooks[name] !== undefined
 
 const describeExpected = (expected: string | RegExp): string =>
   expected instanceof RegExp ? `${expected}` : `"${expected}"`
@@ -65,8 +86,85 @@ export const attributeMismatches = (
     ),
   )
 
+type SceneMatchers = {
+  toHaveText(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: string | RegExp,
+  ): MatcherResult
+  toContainText(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: string | RegExp,
+  ): MatcherResult
+  toHaveClass(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: string,
+  ): MatcherResult
+  toHaveAttr(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    name: string,
+    expectedValue?: string,
+  ): MatcherResult
+  toHaveAttrs(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: AttributeExpectations,
+  ): MatcherResult
+  toExist(this: MatcherContext, received: Option.Option<VNode>): MatcherResult
+  toBeAbsent(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+  ): MatcherResult
+  toHaveStyle(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    name: string,
+    expectedValue?: string,
+  ): MatcherResult
+  toHaveHook(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    name: string,
+  ): MatcherResult
+  toHaveHandler(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    name: string,
+  ): MatcherResult
+  toHaveValue(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: string,
+  ): MatcherResult
+  toBeDisabled(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+  ): MatcherResult
+  toBeEnabled(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+  ): MatcherResult
+  toBeEmpty(this: MatcherContext, received: Option.Option<VNode>): MatcherResult
+  toBeVisible(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+  ): MatcherResult
+  toHaveId(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+    expected: string,
+  ): MatcherResult
+  toBeChecked(
+    this: MatcherContext,
+    received: Option.Option<VNode>,
+  ): MatcherResult
+}
+
 /** Custom Vitest matchers for scene testing. Register with `expect.extend(Scene.sceneMatchers)`. */
-export const sceneMatchers = {
+export const sceneMatchers: SceneMatchers = {
   toHaveText(received: Option.Option<VNode>, expected: string | RegExp) {
     return Option.match(received, {
       onNone: () => ({
@@ -79,8 +177,7 @@ export const sceneMatchers = {
         return {
           pass: textMatches(actualText, expected),
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? `Expected element not to have text ${describeExpected(expected)} but it does.`
               : `Expected element to have text ${describeExpected(expected)} but received "${actualText}".`,
         }
@@ -100,8 +197,7 @@ export const sceneMatchers = {
         return {
           pass: textIncludes(actualText, expected),
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? `Expected element not to contain text ${describeExpected(expected)} but it does.`
               : `Expected element to contain text ${describeExpected(expected)} but received "${actualText}".`,
         }
@@ -119,8 +215,7 @@ export const sceneMatchers = {
       onSome: vnode => ({
         pass: vnode.data?.class?.[expected] === true,
         message: () =>
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          (this as unknown as MatcherContext).isNot
+          this.isNot
             ? `Expected element not to have class "${expected}" but it does.`
             : `Expected element to have class "${expected}" but it does not.`,
       }),
@@ -147,8 +242,7 @@ export const sceneMatchers = {
           return {
             pass: Option.isSome(actualValue),
             message: () =>
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              (this as unknown as MatcherContext).isNot
+              this.isNot
                 ? `Expected element not to have attribute "${name}" but it does.`
                 : `Expected element to have attribute "${name}" but it is not present.`,
           }
@@ -163,8 +257,7 @@ export const sceneMatchers = {
           onSome: actual => ({
             pass: actual === expectedValue,
             message: () =>
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              (this as unknown as MatcherContext).isNot
+              this.isNot
                 ? `Expected element not to have attribute ${name}="${expectedValue}" but it does.`
                 : `Expected element to have attribute ${name}="${expectedValue}" but received "${actual}".`,
           }),
@@ -188,8 +281,7 @@ export const sceneMatchers = {
         return {
           pass: Array.isArrayEmpty(mismatches),
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? `Expected element not to have attributes ${described} but it does.`
               : `Expected element to have attributes ${described} but ${Array.join(mismatches, '; ')}.`,
         }
@@ -201,8 +293,7 @@ export const sceneMatchers = {
     return {
       pass: Option.isSome(received),
       message: () =>
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        (this as unknown as MatcherContext).isNot
+        this.isNot
           ? 'Expected element not to exist but it does.'
           : 'Expected element to exist but it does not.',
     }
@@ -212,8 +303,7 @@ export const sceneMatchers = {
     return {
       pass: Option.isNone(received),
       message: () =>
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        (this as unknown as MatcherContext).isNot
+        this.isNot
           ? 'Expected element not to be absent but it is.'
           : 'Expected element to be absent but it exists.',
     }
@@ -241,8 +331,7 @@ export const sceneMatchers = {
           return {
             pass: Option.isSome(maybeActualValue),
             message: () =>
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              (this as unknown as MatcherContext).isNot
+              this.isNot
                 ? `Expected element not to have style "${name}" but it does.`
                 : `Expected element to have style "${name}" but it is not present.`,
           }
@@ -259,8 +348,7 @@ export const sceneMatchers = {
             return {
               pass: actual === expectedValue,
               message: () =>
-                // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-                (this as unknown as MatcherContext).isNot
+                this.isNot
                   ? `Expected element not to have style ${name}="${expectedValue}" but it does.`
                   : `Expected element to have style ${name}="${expectedValue}" but received "${actual}".`,
             }
@@ -278,13 +366,11 @@ export const sceneMatchers = {
           `Expected element to have hook "${name}" but the element does not exist.`,
       }),
       onSome: vnode => {
-        // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-        const hooks = vnode.data?.hook as Record<string, unknown> | undefined
+        const hooks = vnode.data?.hook
         return {
-          pass: typeof hooks?.[name] === 'function',
+          pass: hooks !== undefined && hasHook(hooks, name),
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? `Expected element not to have hook "${name}" but it does.`
               : `Expected element to have hook "${name}" but it is not present.`,
         }
@@ -302,8 +388,7 @@ export const sceneMatchers = {
       onSome: vnode => ({
         pass: vnode.data?.on?.[name] !== undefined,
         message: () =>
-          // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-          (this as unknown as MatcherContext).isNot
+          this.isNot
             ? `Expected element not to have handler "${name}" but it does.`
             : `Expected element to have handler "${name}" but it is not present.`,
       }),
@@ -328,8 +413,7 @@ export const sceneMatchers = {
           onSome: actual => ({
             pass: actual === expected,
             message: () =>
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              (this as unknown as MatcherContext).isNot
+              this.isNot
                 ? `Expected element not to have value "${expected}" but it does.`
                 : `Expected element to have value "${expected}" but received "${actual}".`,
           }),
@@ -354,8 +438,7 @@ export const sceneMatchers = {
         return {
           pass,
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? 'Expected element not to be disabled but it is.'
               : 'Expected element to be disabled but it is not.',
         }
@@ -379,8 +462,7 @@ export const sceneMatchers = {
         return {
           pass: !isDisabled,
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? 'Expected element not to be enabled but it is.'
               : 'Expected element to be enabled but it is disabled.',
         }
@@ -405,8 +487,7 @@ export const sceneMatchers = {
         return {
           pass,
           message: (): string =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? 'Expected element not to be empty but it is.'
               : `Expected element to be empty but ${actual}.`,
         }
@@ -425,8 +506,7 @@ export const sceneMatchers = {
         return {
           pass: !isHidden(vnode),
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? 'Expected element not to be visible but it is.'
               : 'Expected element to be visible but it is hidden.',
         }
@@ -452,8 +532,7 @@ export const sceneMatchers = {
           onSome: actual => ({
             pass: actual === expected,
             message: () =>
-              // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-              (this as unknown as MatcherContext).isNot
+              this.isNot
                 ? `Expected element not to have id "${expected}" but it does.`
                 : `Expected element to have id "${expected}" but received "${actual}".`,
           }),
@@ -478,8 +557,7 @@ export const sceneMatchers = {
         return {
           pass,
           message: () =>
-            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-            (this as unknown as MatcherContext).isNot
+            this.isNot
               ? 'Expected element not to be checked but it is.'
               : 'Expected element to be checked but it is not.',
         }
