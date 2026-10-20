@@ -150,6 +150,7 @@ export type RequestedItemClick = typeof Message.RequestedItemClick.Type
 export type Searched = typeof Message.Searched.Type
 export type CompletedDelayClearSearch =
   typeof Message.CompletedDelayClearSearch.Type
+/** A click on the Listbox trigger button. */
 export type ClickedButton = typeof Message.ClickedButton.Type
 export type IgnoredMouseClick = typeof Message.IgnoredMouseClick.Type
 export type SuppressedSpaceScroll = typeof Message.SuppressedSpaceScroll.Type
@@ -627,7 +628,7 @@ export const makeUpdate = <Model extends BaseModel>(
         return openListbox(
           modifyBaseFields(model, {
             maybeActiveItemIndex: () => Option.none(),
-            activationTrigger: () => 'Pointer' as const,
+            activationTrigger: () => 'Pointer',
             searchQuery: () => '',
             searchVersion: () => 0,
             maybeLastPointerPosition: () => Option.none(),

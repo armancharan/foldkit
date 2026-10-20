@@ -74,6 +74,7 @@ export type RequestedOpen = typeof Message.RequestedOpen.Type
 export type RequestedClose = typeof Message.RequestedClose.Type
 export type BlurredPanel = typeof Message.BlurredPanel.Type
 export type PressedPointerOnButton = typeof Message.PressedPointerOnButton.Type
+/** A click on the Popover trigger button. */
 export type ClickedButton = typeof Message.ClickedButton.Type
 export type IgnoredMouseClick = typeof Message.IgnoredMouseClick.Type
 export type SuppressedSpaceScroll = typeof Message.SuppressedSpaceScroll.Type

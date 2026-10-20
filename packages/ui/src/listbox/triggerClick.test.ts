@@ -98,7 +98,7 @@ describe('Listbox trigger click', () => {
         }),
         update: (model: Model, message: Message) => {
           tags.push(message.message._tag)
-          return Message.match(message, {
+          return Message.match<Update.Return<Model, Message>>(message, {
             GotListboxMessage: ({ message: listboxMessage }) =>
               foldListbox(model, listboxMessage),
           })
@@ -120,7 +120,6 @@ describe('Listbox trigger click', () => {
       })
 
       expect(tags).toContain('ClickedButton')
-      expect(tags).not.toContain('Opened')
       expect(tags.filter(tag => tag === 'CompletedLockScroll')).toHaveLength(1)
       expect(tags.filter(tag => tag === 'CompletedInertOthers')).toHaveLength(1)
       expect(

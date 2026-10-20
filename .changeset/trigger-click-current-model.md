@@ -1,7 +1,7 @@
 ---
-'@foldkit/ui': patch
+'@foldkit/ui': minor
 ---
 
-A click on a `Popover`, `Menu`, or `Listbox` trigger is decided from the `Model` at the moment the click arrives. A fast click no longer opens the overlay a second time, so a modal overlay takes the scroll lock once and the panel still closes when focus leaves.
+Decide Popover, Menu, and Listbox trigger clicks in update using the current Model. When a mouse press and click arrive before the next render, the click does not request a second open. A modal overlay acquires its scroll lock once, and focus leaving the panel can close it.
 
-The trigger no longer dispatches `IgnoredMouseClick`. The click arrives as `ClickedButton`, and `update` decides from the current `Model` whether that opens or closes.
+Trigger clicks dispatch `ClickedButton`. Add this variant to exhaustive Message matches for Popover, Menu, and Listbox. Scene tests that assert the Message emitted by a trigger click must expect `ClickedButton`, including the click following a mouse press. Popover clicks previously emitted `RequestedOpen`, `RequestedClose`, or `IgnoredMouseClick`; Menu and Listbox clicks emitted `Opened`, `Closed`, or `IgnoredMouseClick`.

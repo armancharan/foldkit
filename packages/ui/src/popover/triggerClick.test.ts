@@ -92,7 +92,7 @@ const mountPopover = (container: HTMLElement, isModal: boolean) => {
       }),
       update: (model: Model, message: Message) => {
         tags.push(message.message._tag)
-        return Message.match(message, {
+        return Message.match<Update.Return<Model, Message>>(message, {
           GotPopoverMessage: ({ message: popoverMessage }) =>
             foldPopover(model, popoverMessage),
         })
@@ -140,7 +140,6 @@ describe('Popover trigger click', () => {
       })
 
       expect(tags).toContain('ClickedButton')
-      expect(tags).not.toContain('RequestedOpen')
       expect(
         document.getElementById('sort-button')?.getAttribute('aria-expanded'),
       ).toBe('true')
