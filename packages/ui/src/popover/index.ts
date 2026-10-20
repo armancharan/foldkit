@@ -102,10 +102,9 @@ const LEFT_MOUSE_BUTTON = 0
  *  and marks other elements inert while the Popover is open. Both default to
  *  `false`.
  *
- *  `contentFocus` hands focus ownership to the consumer. The panel is not
- *  focusable and does not close when focus leaves, so the consumer must focus
- *  a descendant when the Popover opens and close it according to the
- *  application's focus-leave rules. It defaults to `false`. */
+ *  With `contentFocus: true`, the panel has no tab stop and focus leaving
+ *  it does not close the Popover. Focus a descendant when opening and
+ *  handle focus leaving the content in the application. Defaults to `false`. */
 export type InitConfig = Readonly<{
   id: string
   isAnimated?: boolean
