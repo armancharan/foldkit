@@ -202,13 +202,13 @@ const releaseStoredCleanups = (id: string): void => {
 /**
  * Marks all DOM elements outside the given selectors as `inert` and
  * `aria-hidden="true"`. Walks each allowed element up to `document.body`,
- * marking siblings that don't contain an allowed element. Uses reference
- * counting so nested calls with different ids are safe. A repeated call with
- * the same id replaces that isolation. The next isolation is taken before the
- * previous cleanup runs, so an element held by both stays marked, and one
- * `restoreInert` for the id returns the page to its original state. A restore
- * before the pending render commits invalidates the request before it can
- * change the DOM.
+ * marking siblings that don't contain an allowed element. Reference counting
+ * allows nested calls with different ids.
+ *
+ * Reusing an id acquires the replacement isolation before releasing the
+ * previous one, so shared elements keep `inert` and `aria-hidden` throughout.
+ * One `restoreInert` releases that id's isolation. Calling it before the
+ * pending render commits discards the request.
  *
  * @example
  * ```typescript
