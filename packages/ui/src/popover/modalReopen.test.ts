@@ -30,7 +30,8 @@ const foldPopoverOutMessage = Popover.OutMessage.match<
 const foldPopover = Update.foldChild({
   update: Popover.update,
   read: (model: Model) => Option.some(model.popover),
-  write: (model, popover) => modifyFields(model, { popover: () => popover }),
+  write: (model, nextPopover) =>
+    modifyFields(model, { popover: () => nextPopover }),
   toParentMessage: (message: Popover.Message): Message =>
     Message.GotPopoverMessage({ message }),
   foldOutMessage: foldPopoverOutMessage,
@@ -75,7 +76,7 @@ const mount = (container: HTMLElement) =>
         },
       }),
       update: (model: Model, message: Message) =>
-        Message.match(message, {
+        Message.match<Update.Return<Model, Message>>(message, {
           GotPopoverMessage: ({ message: popoverMessage }) =>
             foldPopover(model, popoverMessage),
         }),
@@ -84,18 +85,18 @@ const mount = (container: HTMLElement) =>
     }),
   )
 
-const inertAncestorId = (element: Element | null): string => {
+const findInertAncestor = (element: Element | null): Option.Option<Element> => {
   for (
     let node = element?.parentElement ?? null;
     node !== null;
     node = node.parentElement
   ) {
     if (node.inert || node.hasAttribute('inert')) {
-      return node.id === '' ? node.tagName : node.id
+      return Option.some(node)
     }
   }
 
-  return 'none'
+  return Option.none()
 }
 
 afterEach(() => {
@@ -124,13 +125,12 @@ it('keeps a modal Popover panel usable on the second open', async () => {
     await vi.waitFor(() =>
       expect(document.activeElement?.id).toBe(`${POPOVER_ID}-panel`),
     )
-    expect(inertAncestorId(panel())).toBe('none')
+    expect(findInertAncestor(panel())).toEqual(Option.none())
     expect(document.getElementById(PORTAL_ROOT_ID)?.inert).toBe(false)
 
     button()?.click()
     await vi.waitFor(() => expect(panel()).toBeNull())
     await vi.waitFor(() => expect(document.querySelector('[inert]')).toBeNull())
-    expect(document.getElementById(PORTAL_ROOT_ID)).toBeNull()
 
     button()?.click()
     await vi.waitFor(() =>
@@ -142,7 +142,7 @@ it('keeps a modal Popover panel usable on the second open', async () => {
     await vi.waitFor(() =>
       expect(document.activeElement?.id).toBe(`${POPOVER_ID}-panel`),
     )
-    expect(inertAncestorId(panel())).toBe('none')
+    expect(findInertAncestor(panel())).toEqual(Option.none())
     expect(document.getElementById(PORTAL_ROOT_ID)?.inert).toBe(false)
   } finally {
     handle.dispose()

@@ -2,4 +2,4 @@
 '@foldkit/ui': patch
 ---
 
-A modal Popover, Menu, Listbox, or Combobox stays usable on the second open. Closing the overlay removes the shared `foldkit-portal-root` once it is empty, the same way a dialog portal root is already removed. Before, that empty root stayed in the page, the next open marked it inert, and the panel was portaled into it, so focus, clicks, and assistive technology could not reach it. A shared root that still hosts another element is still marked inert by the next modal open, and the panel is portaled into that root.
+Remove an empty shared portal root when an overlay closes. A later modal Popover, Menu, Listbox, or Combobox then creates a fresh root, keeping its panel focusable and available to pointer input and assistive technology. If another portaled element occupies the root when a modal overlay opens, the root can still become inert; this change covers reopen flows where the root becomes empty.

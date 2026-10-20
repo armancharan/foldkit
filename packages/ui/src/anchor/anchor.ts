@@ -149,16 +149,12 @@ export const portalToContainingRoot = (element: Element): (() => void) => {
       // Swallow the error.
     }
 
-    // NOTE: an empty root left in place is the next open's problem. A
-    // dialog's children render only while it is open, so an empty root would
-    // be the dialog's only child and the next open would insert the dialog's
-    // content after it. A shared root left in the containing root is a
-    // sibling that holds no allowed element, so the next modal `inertOthers`
-    // marks it inert and the panel is then portaled into that inert root.
-    // Removing the empty root makes the next open create a fresh one after
-    // isolation, the same as the first open. A root that still hosts another
-    // portaled element stays, and the next modal open still marks that root
-    // inert.
+    // NOTE: a modal overlay isolates siblings before its Mount portals the
+    // panel. An empty shared root would become inert, then receive the panel.
+    // Removing empty roots lets the next open create one after isolation.
+    // Dialog roots must also be removed so a reopened dialog appends its portal
+    // root after the newly rendered content. Occupied shared roots are retained;
+    // opening a modal overlay while one exists can still make its panel inert.
     if (!portalRoot.hasChildNodes()) {
       portalRoot.remove()
     }
