@@ -173,7 +173,7 @@ describe('IME composition keydowns', () => {
   const composing = { isComposing: true, keyCode: 0 }
   const compositionKeyCode = { isComposing: false, keyCode: 229 }
 
-  it('OnKeyDownPreventDefault still claims an ordinary Enter', () => {
+  it('OnKeyDownPreventDefault claims an ordinary Enter', () => {
     const h = __htmlBuilder<Message>()
     const vnode = h.div([
       h.OnKeyDownPreventDefault(key =>
