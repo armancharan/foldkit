@@ -90,7 +90,7 @@ const mountPopover = (container: HTMLElement) => {
       init: () => ({ model: { popover: init({ id: 'sort' }) } }),
       update: (model: Model, message: Message) => {
         tags.push(message.message._tag)
-        return Message.match(message, {
+        return Message.match<Update.Return<Model, Message>>(message, {
           GotPopoverMessage: ({ message: popoverMessage }) =>
             foldPopover(model, popoverMessage),
         })

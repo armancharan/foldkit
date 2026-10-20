@@ -113,6 +113,8 @@ Two ViewConfig fields cover the cases a `<label for>` does not. Pass `ariaLabel`
 
 Spreading the `arrow` bundle supplies the arrow id in application markup. A Scene test that asserts the panel Mount's `arrowId` argument needs to construct that value directly. Use `Popover.arrowId(id)` rather than hardcoding the `-arrow` convention.
 
+Use `Scene.focusLeave(panel)` to test that a default Popover closes when focus leaves its panel.
+
 ## API Reference
 
 ### InitConfig {#init-config}

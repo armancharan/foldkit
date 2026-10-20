@@ -96,7 +96,16 @@ export type Closed = typeof OutMessage.Closed.Type
 
 const LEFT_MOUSE_BUTTON = 0
 
-/** Configuration for creating a popover model with `init`. `isAnimated` enables animation coordination (default `false`). `isModal` locks page scroll and inerts other elements when open (default `false`). `contentFocus` hands focus ownership to the consumer. The panel is not focusable and does not close when focus leaves, so the consumer must focus a descendant on open and close the popover on its own focus-leave rules (default `false`). */
+/** Configuration for creating a Popover Model with `init`.
+ *
+ *  `isAnimated` enables animation coordination. `isModal` locks page scroll
+ *  and marks other elements inert while the Popover is open. Both default to
+ *  `false`.
+ *
+ *  `contentFocus` hands focus ownership to the consumer. The panel is not
+ *  focusable and does not close when focus leaves, so the consumer must focus
+ *  a descendant when the Popover opens and close it according to the
+ *  application's focus-leave rules. It defaults to `false`. */
 export type InitConfig = Readonly<{
   id: string
   isAnimated?: boolean
