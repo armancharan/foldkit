@@ -2,6 +2,6 @@
 '@foldkit/ui': minor
 ---
 
-A default Popover stays open when focus moves from the panel into a control inside it, so Tab can reach the panel's controls. The panel closes when focus leaves it, including when focus moves into DevTools. `contentFocus: true` leaves focus and closing behavior to the consumer.
+A default Popover stays open while focus moves within its panel. It closes when focus leaves the panel, including when focus moves into DevTools. With `contentFocus: true`, the panel has no tab stop and focus leaving it does not close the Popover. The consumer focuses a descendant and handles focus leaving the content.
 
 The panel now handles focus leave instead of blur. Replace `Scene.blur(panel)` with `Scene.focusLeave(panel)` in Scene tests.
